@@ -1,0 +1,102 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: krakow-parking-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-krakow_parking}
+      POSTGRES_USER: ${DB_USER:-parking_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-parking_pass}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-parking_user} -d ${DB_NAME:-krakow_parking}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - parking-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: krakow-parking-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - parking-net
+
+  backend:
+    platform: linux/amd64
+    build:
+      context: ./backend
+    container_name: krakow-parking-backend
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      DB_HOST: postgres
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-krakow_parking}
+      DB_USER: ${DB_USER:-parking_user}
+      DB_PASSWORD: ${DB_PASSWORD:-parking_pass}
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT:-6379}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - parking-net
+
+  admin-frontend:
+    build:
+      context: ./admin-frontend
+    container_name: krakow-parking-admin-frontend
+    ports:
+      - "3001:3001"
+    depends_on:
+      - backend
+    networks:
+      - parking-net
+
+  user-frontend:
+    build:
+      context: ./user-frontend
+    container_name: krakow-parking-user-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - parking-net
+
+  nginx:
+    image: nginx:alpine
+    container_name: krakow-parking-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+      - admin-frontend
+      - user-frontend
+    networks:
+      - parking-net
+
+volumes:
+  pgdata:
+  redis-data:
+
+networks:
+  parking-net:
+    driver: bridge

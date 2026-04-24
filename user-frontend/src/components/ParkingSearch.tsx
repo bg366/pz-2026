@@ -1,0 +1,229 @@
+import { useState } from "react";
+import type { FormEvent } from "react";
+
+type FuelType = "" | "PETROL" | "DIESEL" | "LPG" | "HYBRID" | "ELECTRIC";
+type EmissionStandard =
+  | ""
+  | "EURO_1"
+  | "EURO_2"
+  | "EURO_3"
+  | "EURO_4"
+  | "EURO_5"
+  | "EURO_6"
+  | "ELECTRIC";
+
+type SearchResult = {
+  id: number;
+  name: string;
+  address: string;
+  zone: string;
+  distanceKm: number;
+  sctAllowed: boolean;
+  availableSpots: number;
+  pricePerHour: number | null;
+  currency: string | null;
+  parkingType: string;
+};
+
+const initialState = {
+  lat: "50.0615",
+  lng: "19.9370",
+  radiusKm: "5",
+  fuelType: "" as FuelType,
+  emissionStandard: "" as EmissionStandard
+};
+
+export default function ParkingSearch() {
+  const [form, setForm] = useState(initialState);
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      const params = new URLSearchParams({
+        lat: form.lat,
+        lng: form.lng,
+        radiusKm: form.radiusKm
+      });
+
+      if (form.fuelType) {
+        params.set("fuelType", form.fuelType);
+      }
+
+      if (form.emissionStandard) {
+        params.set("emissionStandard", form.emissionStandard);
+      }
+
+      const response = await fetch(`/api/parking-lots/search?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const payload = (await response.json()) as SearchResult[];
+      setResults(payload);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Nie udało się pobrać wyników.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function useMyLocation() {
+    if (!navigator.geolocation) {
+      setError("Geolokalizacja nie jest wspierana w tej przeglądarce.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setForm((current) => ({
+          ...current,
+          lat: position.coords.latitude.toFixed(4),
+          lng: position.coords.longitude.toFixed(4)
+        }));
+      },
+      () => setError("Nie udało się pobrać Twojej lokalizacji.")
+    );
+  }
+
+  return (
+    <div className="stack">
+      <div className="section-heading">
+        <h2>Znajdź parking</h2>
+        <p>
+          Podaj współrzędne i promień wyszukiwania. Opcjonalnie możesz dołączyć filtr SCT
+          według typu paliwa i normy emisji.
+        </p>
+      </div>
+
+      <form className="card form-grid" onSubmit={handleSubmit}>
+        <label className="field">
+          <span>Latitude</span>
+          <input
+            type="number"
+            step="0.0001"
+            value={form.lat}
+            onChange={(event) => setForm((current) => ({ ...current, lat: event.target.value }))}
+            required
+          />
+        </label>
+
+        <label className="field">
+          <span>Longitude</span>
+          <input
+            type="number"
+            step="0.0001"
+            value={form.lng}
+            onChange={(event) => setForm((current) => ({ ...current, lng: event.target.value }))}
+            required
+          />
+        </label>
+
+        <label className="field">
+          <span>Promień (km)</span>
+          <input
+            type="number"
+            min="1"
+            value={form.radiusKm}
+            onChange={(event) => setForm((current) => ({ ...current, radiusKm: event.target.value }))}
+            required
+          />
+        </label>
+
+        <label className="field">
+          <span>Typ paliwa</span>
+          <select
+            value={form.fuelType}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, fuelType: event.target.value as FuelType }))
+            }
+          >
+            <option value="">Bez filtra</option>
+            <option value="PETROL">PETROL</option>
+            <option value="DIESEL">DIESEL</option>
+            <option value="LPG">LPG</option>
+            <option value="HYBRID">HYBRID</option>
+            <option value="ELECTRIC">ELECTRIC</option>
+          </select>
+        </label>
+
+        <label className="field">
+          <span>Norma emisji</span>
+          <select
+            value={form.emissionStandard}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                emissionStandard: event.target.value as EmissionStandard
+              }))
+            }
+          >
+            <option value="">Bez filtra</option>
+            <option value="EURO_1">EURO_1</option>
+            <option value="EURO_2">EURO_2</option>
+            <option value="EURO_3">EURO_3</option>
+            <option value="EURO_4">EURO_4</option>
+            <option value="EURO_5">EURO_5</option>
+            <option value="EURO_6">EURO_6</option>
+            <option value="ELECTRIC">ELECTRIC</option>
+          </select>
+        </label>
+
+        <div className="form-actions">
+          <button type="button" className="button button--ghost" onClick={useMyLocation}>
+            Użyj mojej lokalizacji
+          </button>
+          <button type="submit" className="button" disabled={loading}>
+            {loading ? "Wyszukiwanie..." : "Szukaj parkingu"}
+          </button>
+        </div>
+      </form>
+
+      {error ? <div className="feedback feedback--error">{error}</div> : null}
+
+      <div className="results-grid">
+        {results.map((result) => (
+          <article key={result.id} className="result-card">
+            <div className="result-card__header">
+              <div>
+                <h3>{result.name}</h3>
+                <p>{result.address}</p>
+              </div>
+              <span className={result.sctAllowed ? "badge badge--success" : "badge badge--danger"}>
+                {result.sctAllowed ? "Wjazd dozwolony" : "Wjazd zakazany"}
+              </span>
+            </div>
+
+            <dl className="details">
+              <div>
+                <dt>Odległość</dt>
+                <dd>{result.distanceKm} km</dd>
+              </div>
+              <div>
+                <dt>Strefa</dt>
+                <dd>{result.zone}</dd>
+              </div>
+              <div>
+                <dt>Dostępne miejsca</dt>
+                <dd>{result.availableSpots}</dd>
+              </div>
+              <div>
+                <dt>Cena</dt>
+                <dd>
+                  {result.pricePerHour != null && result.currency
+                    ? `${result.pricePerHour} ${result.currency}/h`
+                    : "Brak taryfy"}
+                </dd>
+              </div>
+            </dl>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}

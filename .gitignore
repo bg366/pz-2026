@@ -1,0 +1,19 @@
+.env
+.DS_Store
+
+# Java / Gradle
+backend/.gradle/
+backend/build/
+backend/out/
+
+# Node
+admin-frontend/node_modules/
+admin-frontend/dist/
+user-frontend/node_modules/
+user-frontend/dist/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+

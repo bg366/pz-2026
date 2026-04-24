@@ -1,0 +1,32 @@
+### Lista parkingów
+GET http://localhost:80/api/admin/parking-lots
+
+### Dodaj parking
+POST http://localhost:80/api/admin/parking-lots
+Content-Type: application/json
+
+{
+  "name": "Parking Testowy",
+  "address": "ul. Testowa 1, Kraków",
+  "zone": "ZONE_A",
+  "latitude": 50.0600,
+  "longitude": 19.9400,
+  "totalSpots": 100,
+  "parkingType": "PUBLIC"
+}
+
+### Wyszukaj parkingi w promieniu 3 km od Rynku
+GET http://localhost:80/api/parking-lots/search?lat=50.0615&lng=19.9370&radiusKm=3&fuelType=DIESEL&emissionStandard=EURO_5
+
+### Sprawdź czy pojazd może wjechać
+POST http://localhost:80/api/vehicles/check
+Content-Type: application/json
+
+{
+  "fuelType": "DIESEL",
+  "emissionStandard": "EURO_3",
+  "zone": "ZONE_A"
+}
+
+### Oblicz opłatę za 2h parkowania
+GET http://localhost:80/api/parking-fee/calculate?parkingLotId=1&durationMinutes=120
