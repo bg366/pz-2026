@@ -3,6 +3,7 @@ package pl.krakow.parking.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalTime;
+import java.util.Comparator;
 import java.util.List;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -15,12 +16,16 @@ import org.springframework.transaction.annotation.Transactional;
 import pl.krakow.parking.dto.OccupancyUpdateRequest;
 import pl.krakow.parking.dto.ParkingLotCreateRequest;
 import pl.krakow.parking.dto.ParkingLotResponse;
+import pl.krakow.parking.dto.ParkingSpotRequest;
+import pl.krakow.parking.dto.ParkingSpotResponse;
 import pl.krakow.parking.dto.ParkingLotUpdateRequest;
 import pl.krakow.parking.dto.ParkingSearchRequest;
 import pl.krakow.parking.dto.ParkingSearchResponse;
 import pl.krakow.parking.exception.ResourceNotFoundException;
 import pl.krakow.parking.mapper.ParkingLotMapper;
+import pl.krakow.parking.mapper.ParkingSpotMapper;
 import pl.krakow.parking.model.ParkingLot;
+import pl.krakow.parking.model.ParkingSpot;
 import pl.krakow.parking.model.ParkingZone;
 import pl.krakow.parking.model.Tariff;
 import pl.krakow.parking.repository.ParkingLotRepository;
@@ -32,15 +37,18 @@ public class ParkingLotService {
 
     private final ParkingLotRepository parkingLotRepository;
     private final ParkingLotMapper parkingLotMapper;
+    private final ParkingSpotMapper parkingSpotMapper;
     private final SctVerificationService sctVerificationService;
 
     public ParkingLotService(
         ParkingLotRepository parkingLotRepository,
         ParkingLotMapper parkingLotMapper,
+        ParkingSpotMapper parkingSpotMapper,
         SctVerificationService sctVerificationService
     ) {
         this.parkingLotRepository = parkingLotRepository;
         this.parkingLotMapper = parkingLotMapper;
+        this.parkingSpotMapper = parkingSpotMapper;
         this.sctVerificationService = sctVerificationService;
     }
 
@@ -92,7 +100,48 @@ public class ParkingLotService {
         return parkingLotRepository.findNearby(request.lat(), request.lng(), request.radiusKm() * 1000.0d)
             .stream()
             .map(parkingLot -> toSearchResponse(parkingLot, request))
+            .filter(response -> matchesPrice(response, request.maxPricePerHour()))
             .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ParkingSpotResponse> getSpotConfiguration(Long id) {
+        ParkingLot parkingLot = getParkingLotEntity(id);
+        return parkingSpotMapper.toResponses(
+            parkingLot.getSpots().stream()
+                .sorted(Comparator.comparing(ParkingSpot::getCategory))
+                .toList()
+        );
+    }
+
+    @Transactional
+    public ParkingLotResponse replaceSpotConfiguration(Long id, List<ParkingSpotRequest> requests) {
+        ParkingLot parkingLot = getParkingLotEntity(id);
+        parkingLot.getSpots().clear();
+
+        int totalSpots = 0;
+        int occupiedSpots = 0;
+
+        for (ParkingSpotRequest request : requests) {
+            if (request.occupied() > request.total()) {
+                throw new IllegalArgumentException(
+                    "Occupied spots cannot exceed total spots for category %s.".formatted(request.category())
+                );
+            }
+
+            ParkingSpot spot = ParkingSpot.builder()
+                .category(request.category())
+                .total(request.total())
+                .occupied(request.occupied())
+                .build();
+            parkingLot.addSpot(spot);
+            totalSpots += request.total();
+            occupiedSpots += request.occupied();
+        }
+
+        parkingLot.setTotalSpots(totalSpots);
+        parkingLot.setOccupiedSpots(occupiedSpots);
+        return parkingLotMapper.toResponse(parkingLotRepository.save(parkingLot));
     }
 
     private ParkingSearchResponse toSearchResponse(ParkingLot parkingLot, ParkingSearchRequest request) {
@@ -117,6 +166,13 @@ public class ParkingLotService {
             currency,
             parkingLot.getParkingType()
         );
+    }
+
+    private boolean matchesPrice(ParkingSearchResponse response, BigDecimal maxPricePerHour) {
+        if (maxPricePerHour == null || response.pricePerHour() == null) {
+            return true;
+        }
+        return response.pricePerHour().compareTo(maxPricePerHour) <= 0;
     }
 
     private ParkingLot getParkingLotEntity(Long id) {

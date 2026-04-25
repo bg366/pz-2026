@@ -2,6 +2,7 @@ package pl.krakow.parking.controller;
 
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
+import java.math.BigDecimal;
 import java.util.List;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,10 +37,11 @@ public class PublicParkingController {
         @RequestParam @DecimalMin("-180.0") @DecimalMax("180.0") double lng,
         @RequestParam(defaultValue = "5") @DecimalMin("0.1") double radiusKm,
         @RequestParam(required = false) FuelType fuelType,
-        @RequestParam(required = false) EmissionStandard emissionStandard
+        @RequestParam(required = false) EmissionStandard emissionStandard,
+        @RequestParam(required = false) @DecimalMin("0.0") BigDecimal maxPricePerHour
     ) {
         return parkingLotService.searchNearby(
-            new ParkingSearchRequest(lat, lng, radiusKm, fuelType, emissionStandard)
+            new ParkingSearchRequest(lat, lng, radiusKm, fuelType, emissionStandard, maxPricePerHour)
         );
     }
 

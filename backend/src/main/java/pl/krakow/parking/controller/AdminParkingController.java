@@ -1,6 +1,7 @@
 package pl.krakow.parking.controller;
 
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.validation.annotation.Validated;
@@ -16,6 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 import pl.krakow.parking.dto.OccupancyUpdateRequest;
 import pl.krakow.parking.dto.ParkingLotCreateRequest;
 import pl.krakow.parking.dto.ParkingLotResponse;
+import pl.krakow.parking.dto.ParkingSpotRequest;
+import pl.krakow.parking.dto.ParkingSpotResponse;
 import pl.krakow.parking.dto.ParkingLotUpdateRequest;
 import pl.krakow.parking.service.ParkingLotService;
 
@@ -61,5 +64,18 @@ public class AdminParkingController {
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
         parkingLotService.delete(id);
+    }
+
+    @GetMapping("/{id}/spots")
+    public List<ParkingSpotResponse> getSpots(@PathVariable Long id) {
+        return parkingLotService.getSpotConfiguration(id);
+    }
+
+    @PutMapping("/{id}/spots")
+    public ParkingLotResponse replaceSpots(
+        @PathVariable Long id,
+        @Valid @RequestBody List<ParkingSpotRequest> requests
+    ) {
+        return parkingLotService.replaceSpotConfiguration(id, requests);
     }
 }

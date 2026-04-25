@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 
 type FuelType = "" | "PETROL" | "DIESEL" | "LPG" | "HYBRID" | "ELECTRIC";
@@ -17,6 +17,8 @@ type SearchResult = {
   name: string;
   address: string;
   zone: string;
+  latitude: number;
+  longitude: number;
   distanceKm: number;
   sctAllowed: boolean;
   availableSpots: number;
@@ -29,6 +31,7 @@ const initialState = {
   lat: "50.0615",
   lng: "19.9370",
   radiusKm: "5",
+  maxPricePerHour: "",
   fuelType: "" as FuelType,
   emissionStandard: "" as EmissionStandard
 };
@@ -38,11 +41,21 @@ export default function ParkingSearch() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
+
+  const activeFilters = useMemo(() => {
+    return [
+      form.maxPricePerHour ? `Do ${form.maxPricePerHour} PLN/h` : null,
+      form.fuelType ? `Paliwo: ${form.fuelType}` : null,
+      form.emissionStandard ? `Norma: ${form.emissionStandard}` : null
+    ].filter(Boolean) as string[];
+  }, [form.emissionStandard, form.fuelType, form.maxPricePerHour]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
     setError(null);
+    setHasSearched(true);
 
     try {
       const params = new URLSearchParams({
@@ -50,6 +63,10 @@ export default function ParkingSearch() {
         lng: form.lng,
         radiusKm: form.radiusKm
       });
+
+      if (form.maxPricePerHour) {
+        params.set("maxPricePerHour", form.maxPricePerHour);
+      }
 
       if (form.fuelType) {
         params.set("fuelType", form.fuelType);
@@ -91,17 +108,25 @@ export default function ParkingSearch() {
     );
   }
 
+  function buildGoogleMapsUrl(result: SearchResult) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${result.latitude},${result.longitude}`;
+  }
+
+  function buildAppleMapsUrl(result: SearchResult) {
+    return `https://maps.apple.com/?daddr=${result.latitude},${result.longitude}`;
+  }
+
   return (
     <div className="stack">
       <div className="section-heading">
         <h2>Znajdź parking</h2>
         <p>
-          Podaj współrzędne i promień wyszukiwania. Opcjonalnie możesz dołączyć filtr SCT
-          według typu paliwa i normy emisji.
+          Szukaj parkingów w promieniu od wskazanej lokalizacji, filtruj po cenie i od razu
+          sprawdzaj, czy Twój pojazd spełnia wymagania SCT.
         </p>
       </div>
 
-      <form className="card form-grid" onSubmit={handleSubmit}>
+      <form className="card form-grid form-grid--three" onSubmit={handleSubmit}>
         <label className="field">
           <span>Latitude</span>
           <input
@@ -132,6 +157,20 @@ export default function ParkingSearch() {
             value={form.radiusKm}
             onChange={(event) => setForm((current) => ({ ...current, radiusKm: event.target.value }))}
             required
+          />
+        </label>
+
+        <label className="field">
+          <span>Maks. cena (PLN/h)</span>
+          <input
+            type="number"
+            min="0"
+            step="0.50"
+            value={form.maxPricePerHour}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, maxPricePerHour: event.target.value }))
+            }
+            placeholder="np. 6.00"
           />
         </label>
 
@@ -184,7 +223,23 @@ export default function ParkingSearch() {
         </div>
       </form>
 
+      {activeFilters.length > 0 ? (
+        <div className="filter-list" aria-label="Aktywne filtry">
+          {activeFilters.map((filter) => (
+            <span key={filter} className="filter-chip">
+              {filter}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
       {error ? <div className="feedback feedback--error">{error}</div> : null}
+
+      {hasSearched && !loading && results.length === 0 && !error ? (
+        <div className="feedback feedback--empty">
+          Brak parkingów spełniających podane kryteria. Zwiększ promień albo poluzuj filtry.
+        </div>
+      ) : null}
 
       <div className="results-grid">
         {results.map((result) => (
@@ -220,7 +275,34 @@ export default function ParkingSearch() {
                     : "Brak taryfy"}
                 </dd>
               </div>
+              <div>
+                <dt>Typ parkingu</dt>
+                <dd>{result.parkingType}</dd>
+              </div>
+              <div>
+                <dt>Status SCT</dt>
+                <dd>{result.sctAllowed ? "Spełnia filtr" : "Nie spełnia filtra"}</dd>
+              </div>
             </dl>
+
+            <div className="result-card__actions">
+              <a
+                className="button button--ghost"
+                href={buildGoogleMapsUrl(result)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Google Maps
+              </a>
+              <a
+                className="button button--link"
+                href={buildAppleMapsUrl(result)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Apple Maps
+              </a>
+            </div>
           </article>
         ))}
       </div>

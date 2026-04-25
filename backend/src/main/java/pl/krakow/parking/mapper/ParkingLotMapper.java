@@ -9,7 +9,7 @@ import pl.krakow.parking.dto.ParkingLotResponse;
 import pl.krakow.parking.dto.ParkingLotUpdateRequest;
 import pl.krakow.parking.model.ParkingLot;
 
-@Mapper(componentModel = "spring", uses = TariffMapper.class)
+@Mapper(componentModel = "spring", uses = {TariffMapper.class, ParkingSpotMapper.class})
 public interface ParkingLotMapper {
 
     @Mapping(target = "latitude", expression = "java(parkingLot.getLocation() != null ? parkingLot.getLocation().getY() : null)")

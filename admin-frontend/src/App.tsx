@@ -1,9 +1,20 @@
-import { useEffect, useState } from "react";
-import type { CSSProperties } from "react";
-import ParkingLotForm from "./components/ParkingLotForm";
+import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties, FormEvent } from "react";
+import ParkingLotForm, { type ParkingLotPayload } from "./components/ParkingLotForm";
+
+type ParkingSpot = {
+  id: number;
+  category: "REGULAR" | "EV" | "DISABLED" | "SCT_READY";
+  total: number;
+  occupied: number;
+};
 
 type Tariff = {
   id: number;
+  zone: "ZONE_A" | "ZONE_B" | "ZONE_C";
+  dayOfWeek: string | null;
+  hourFrom: string | null;
+  hourTo: string | null;
   pricePerHour: number;
   currency: string;
 };
@@ -18,12 +29,72 @@ type ParkingLot = {
   totalSpots: number;
   occupiedSpots: number;
   parkingType: string;
-  tariffs?: Tariff[];
+  spots: ParkingSpot[];
+  tariffs: Tariff[];
+};
+
+type SctRule = {
+  id: number;
+  zone: "ZONE_A" | "ZONE_B" | "ZONE_C";
+  fuelType: "PETROL" | "DIESEL" | "LPG" | "HYBRID" | "ELECTRIC";
+  minEmissionStandard: string;
+  allowed: boolean;
+  validFrom: string;
+  validTo: string | null;
+  description: string | null;
 };
 
 type PagedResponse = {
   content?: ParkingLot[];
 };
+
+type TariffForm = {
+  id?: number;
+  zone: "ZONE_A" | "ZONE_B" | "ZONE_C";
+  dayOfWeek: string;
+  hourFrom: string;
+  hourTo: string;
+  pricePerHour: string;
+  currency: string;
+};
+
+type SctRuleForm = {
+  id?: number;
+  zone: "ZONE_A" | "ZONE_B" | "ZONE_C";
+  fuelType: "PETROL" | "DIESEL" | "LPG" | "HYBRID" | "ELECTRIC";
+  minEmissionStandard: string;
+  allowed: boolean;
+  validFrom: string;
+  validTo: string;
+  description: string;
+};
+
+type SpotFormEntry = {
+  category: ParkingSpot["category"];
+  total: string;
+  occupied: string;
+};
+
+const emptyTariffForm: TariffForm = {
+  zone: "ZONE_A",
+  dayOfWeek: "",
+  hourFrom: "",
+  hourTo: "",
+  pricePerHour: "6",
+  currency: "PLN"
+};
+
+const emptyRuleForm: SctRuleForm = {
+  zone: "ZONE_A",
+  fuelType: "DIESEL",
+  minEmissionStandard: "EURO_5",
+  allowed: true,
+  validFrom: "2024-07-01",
+  validTo: "",
+  description: ""
+};
+
+const spotCategories: SpotFormEntry["category"][] = ["REGULAR", "EV", "DISABLED", "SCT_READY"];
 
 const styles = {
   page: {
@@ -35,7 +106,7 @@ const styles = {
     fontFamily: '"Segoe UI", sans-serif'
   },
   container: {
-    maxWidth: "1180px",
+    maxWidth: "1320px",
     margin: "0 auto"
   },
   header: {
@@ -48,13 +119,18 @@ const styles = {
   },
   lead: {
     margin: 0,
-    maxWidth: "720px",
+    maxWidth: "760px",
     color: "#5b6475",
     lineHeight: 1.6
   },
-  layout: {
+  grid: {
     display: "grid",
-    gridTemplateColumns: "1.2fr 0.8fr",
+    gridTemplateColumns: "1.2fr 1fr",
+    gap: "24px",
+    alignItems: "start"
+  },
+  stack: {
+    display: "grid",
     gap: "24px"
   },
   card: {
@@ -71,6 +147,15 @@ const styles = {
     gap: "16px",
     marginBottom: "20px"
   },
+  sectionTitle: {
+    margin: 0,
+    fontSize: "22px"
+  },
+  helper: {
+    margin: "8px 0 0",
+    color: "#6b7280",
+    lineHeight: 1.5
+  },
   button: {
     border: "none",
     borderRadius: "999px",
@@ -78,6 +163,24 @@ const styles = {
     fontWeight: 700,
     color: "#ffffff",
     backgroundColor: "#9a3412",
+    cursor: "pointer"
+  },
+  subtleButton: {
+    border: "1px solid rgba(154, 52, 18, 0.15)",
+    borderRadius: "999px",
+    padding: "8px 14px",
+    fontWeight: 700,
+    color: "#9a3412",
+    backgroundColor: "#fff7ed",
+    cursor: "pointer"
+  },
+  dangerButton: {
+    border: "none",
+    borderRadius: "999px",
+    padding: "8px 14px",
+    fontWeight: 700,
+    color: "#ffffff",
+    backgroundColor: "#be123c",
     cursor: "pointer"
   },
   tableWrapper: {
@@ -100,8 +203,13 @@ const styles = {
     borderTop: "1px solid rgba(162, 123, 92, 0.14)",
     verticalAlign: "top" as const
   },
+  actions: {
+    display: "flex",
+    flexWrap: "wrap" as const,
+    gap: "8px"
+  },
   badge: {
-    display: "inline-block",
+    display: "inline-flex",
     padding: "6px 10px",
     borderRadius: "999px",
     backgroundColor: "#ffedd5",
@@ -109,20 +217,60 @@ const styles = {
     fontSize: "12px",
     fontWeight: 700
   },
-  helper: {
-    margin: "12px 0 0",
-    color: "#6b7280"
-  },
-  error: {
-    marginBottom: "16px",
+  feedback: {
     padding: "12px 14px",
     borderRadius: "12px",
+    fontSize: "14px"
+  },
+  error: {
     backgroundColor: "#fff1f2",
     color: "#be123c"
+  },
+  success: {
+    backgroundColor: "#ecfdf5",
+    color: "#047857"
+  },
+  formGrid: {
+    display: "grid",
+    gap: "12px"
+  },
+  formRow: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: "12px"
+  },
+  field: {
+    display: "grid",
+    gap: "8px"
+  },
+  label: {
+    fontSize: "14px",
+    fontWeight: 700,
+    color: "#7c2d12"
+  },
+  input: {
+    width: "100%",
+    boxSizing: "border-box" as const,
+    borderRadius: "12px",
+    border: "1px solid rgba(124, 45, 18, 0.18)",
+    padding: "12px 14px",
+    fontSize: "14px",
+    backgroundColor: "#fffefc"
+  },
+  summaryGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: "12px"
+  },
+  summaryCard: {
+    padding: "16px",
+    borderRadius: "16px",
+    backgroundColor: "#fff7ed",
+    border: "1px solid rgba(154, 52, 18, 0.12)"
   }
 } satisfies Record<string, CSSProperties>;
 
-function normalizeResponse(payload: ParkingLot[] | PagedResponse): ParkingLot[] {
+function normalizeParkingLots(payload: ParkingLot[] | PagedResponse): ParkingLot[] {
   if (Array.isArray(payload)) {
     return payload;
   }
@@ -130,20 +278,87 @@ function normalizeResponse(payload: ParkingLot[] | PagedResponse): ParkingLot[] 
   return Array.isArray(payload.content) ? payload.content : [];
 }
 
+function formatSpotForms(spots: ParkingSpot[]): SpotFormEntry[] {
+  return spotCategories.map((category) => {
+    const match = spots.find((spot) => spot.category === category);
+    return {
+      category,
+      total: String(match?.total ?? 0),
+      occupied: String(match?.occupied ?? 0)
+    };
+  });
+}
+
+function mapParkingToFormValues(parkingLot: ParkingLot): ParkingLotPayload {
+  return {
+    id: parkingLot.id,
+    name: parkingLot.name,
+    address: parkingLot.address,
+    zone: parkingLot.zone,
+    latitude: String(parkingLot.latitude),
+    longitude: String(parkingLot.longitude),
+    totalSpots: String(parkingLot.totalSpots),
+    occupiedSpots: parkingLot.occupiedSpots,
+    parkingType: parkingLot.parkingType
+  };
+}
+
+function mapTariffToForm(tariff: Tariff): TariffForm {
+  return {
+    id: tariff.id,
+    zone: tariff.zone,
+    dayOfWeek: tariff.dayOfWeek ?? "",
+    hourFrom: tariff.hourFrom ?? "",
+    hourTo: tariff.hourTo ?? "",
+    pricePerHour: String(tariff.pricePerHour),
+    currency: tariff.currency
+  };
+}
+
+function mapRuleToForm(rule: SctRule): SctRuleForm {
+  return {
+    id: rule.id,
+    zone: rule.zone,
+    fuelType: rule.fuelType,
+    minEmissionStandard: rule.minEmissionStandard,
+    allowed: rule.allowed,
+    validFrom: rule.validFrom,
+    validTo: rule.validTo ?? "",
+    description: rule.description ?? ""
+  };
+}
+
 export default function App() {
   const [parkingLots, setParkingLots] = useState<ParkingLot[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [selectedParkingId, setSelectedParkingId] = useState<number | null>(null);
+  const [selectedParking, setSelectedParking] = useState<ParkingLot | null>(null);
+  const [editingParking, setEditingParking] = useState<ParkingLot | null>(null);
+  const [loadingParkingLots, setLoadingParkingLots] = useState(true);
+  const [parkingError, setParkingError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  async function loadParkingLots(showRefreshState = false) {
-    if (showRefreshState) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
+  const [occupancyValue, setOccupancyValue] = useState("0");
+  const [spotForms, setSpotForms] = useState<SpotFormEntry[]>(formatSpotForms([]));
+
+  const [tariffForm, setTariffForm] = useState<TariffForm>(emptyTariffForm);
+  const [sctRules, setSctRules] = useState<SctRule[]>([]);
+  const [ruleForm, setRuleForm] = useState<SctRuleForm>(emptyRuleForm);
+
+  const selectedParkingSummary = useMemo(() => {
+    if (!selectedParking) {
+      return null;
     }
 
-    setError(null);
+    return {
+      available: selectedParking.totalSpots - selectedParking.occupiedSpots,
+      tariffs: selectedParking.tariffs.length,
+      categories: selectedParking.spots.length
+    };
+  }, [selectedParking]);
+
+  async function loadParkingLots() {
+    setLoadingParkingLots(true);
+    setParkingError(null);
 
     try {
       const response = await fetch("/api/admin/parking-lots?size=50");
@@ -152,18 +367,251 @@ export default function App() {
       }
 
       const payload = (await response.json()) as ParkingLot[] | PagedResponse;
-      setParkingLots(normalizeResponse(payload));
+      const normalized = normalizeParkingLots(payload);
+      setParkingLots(normalized);
+
+      if (selectedParkingId == null && normalized.length > 0) {
+        setSelectedParkingId(normalized[0].id);
+      }
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Unknown error");
+      setParkingError(requestError instanceof Error ? requestError.message : "Unknown error");
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setLoadingParkingLots(false);
+    }
+  }
+
+  async function loadParkingDetails(parkingLotId: number) {
+    try {
+      const response = await fetch(`/api/admin/parking-lots/${parkingLotId}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const payload = (await response.json()) as ParkingLot;
+      setSelectedParking(payload);
+      setOccupancyValue(String(payload.occupiedSpots));
+      setSpotForms(formatSpotForms(payload.spots));
+      setTariffForm(payload.tariffs[0] ? mapTariffToForm(payload.tariffs[0]) : emptyTariffForm);
+    } catch (requestError) {
+      setParkingError(requestError instanceof Error ? requestError.message : "Could not load parking details.");
+    }
+  }
+
+  async function loadSctRules() {
+    try {
+      const response = await fetch("/api/admin/sct-rules");
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      setSctRules((await response.json()) as SctRule[]);
+    } catch (requestError) {
+      setParkingError(requestError instanceof Error ? requestError.message : "Could not load SCT rules.");
     }
   }
 
   useEffect(() => {
     void loadParkingLots();
+    void loadSctRules();
   }, []);
+
+  useEffect(() => {
+    if (selectedParkingId != null) {
+      void loadParkingDetails(selectedParkingId);
+    }
+  }, [selectedParkingId]);
+
+  async function handleParkingSaved(savedParking: ParkingLot) {
+    setStatusMessage(`Zapisano parking: ${savedParking.name}.`);
+    setEditingParking(null);
+    setSelectedParkingId(savedParking.id);
+    await loadParkingLots();
+    await loadParkingDetails(savedParking.id);
+  }
+
+  async function handleParkingDelete(parkingLotId: number) {
+    if (!window.confirm("Usunąć wybrany parking?")) {
+      return;
+    }
+
+    const response = await fetch(`/api/admin/parking-lots/${parkingLotId}`, {
+      method: "DELETE"
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    setStatusMessage("Parking został usunięty.");
+    setEditingParking(null);
+    setSelectedParkingId(null);
+    setSelectedParking(null);
+    await loadParkingLots();
+  }
+
+  async function submitOccupancy(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!selectedParking) {
+      return;
+    }
+
+    const response = await fetch(`/api/admin/parking-lots/${selectedParking.id}/occupancy`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ occupiedSpots: Number(occupancyValue) })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    setStatusMessage("Zaktualizowano obłożenie.");
+    await loadParkingLots();
+    await loadParkingDetails(selectedParking.id);
+  }
+
+  async function submitSpots(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!selectedParking) {
+      return;
+    }
+
+    const payload = spotForms.map((spot) => ({
+      category: spot.category,
+      total: Number(spot.total),
+      occupied: Number(spot.occupied)
+    }));
+
+    const response = await fetch(`/api/admin/parking-lots/${selectedParking.id}/spots`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+
+    setStatusMessage("Zapisano konfigurację kategorii miejsc.");
+    await loadParkingLots();
+    await loadParkingDetails(selectedParking.id);
+  }
+
+  async function submitTariff(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!selectedParking) {
+      return;
+    }
+
+    const method = tariffForm.id ? "PUT" : "POST";
+    const path = tariffForm.id
+      ? `/api/admin/parking-lots/${selectedParking.id}/tariffs/${tariffForm.id}`
+      : `/api/admin/parking-lots/${selectedParking.id}/tariffs`;
+
+    const response = await fetch(path, {
+      method,
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        zone: tariffForm.zone,
+        dayOfWeek: tariffForm.dayOfWeek || null,
+        hourFrom: tariffForm.hourFrom || null,
+        hourTo: tariffForm.hourTo || null,
+        pricePerHour: Number(tariffForm.pricePerHour),
+        currency: tariffForm.currency
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+
+    setStatusMessage("Zapisano taryfę.");
+    setTariffForm(emptyTariffForm);
+    await loadParkingLots();
+    await loadParkingDetails(selectedParking.id);
+  }
+
+  async function deleteTariff(tariffId: number) {
+    if (!selectedParking) {
+      return;
+    }
+
+    const response = await fetch(`/api/admin/parking-lots/${selectedParking.id}/tariffs/${tariffId}`, {
+      method: "DELETE"
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    setStatusMessage("Usunięto taryfę.");
+    setTariffForm(emptyTariffForm);
+    await loadParkingLots();
+    await loadParkingDetails(selectedParking.id);
+  }
+
+  async function submitRule(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const method = ruleForm.id ? "PUT" : "POST";
+    const path = ruleForm.id ? `/api/admin/sct-rules/${ruleForm.id}` : "/api/admin/sct-rules";
+
+    const response = await fetch(path, {
+      method,
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        zone: ruleForm.zone,
+        fuelType: ruleForm.fuelType,
+        minEmissionStandard: ruleForm.minEmissionStandard,
+        allowed: ruleForm.allowed,
+        validFrom: ruleForm.validFrom,
+        validTo: ruleForm.validTo || null,
+        description: ruleForm.description || null
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+
+    setStatusMessage("Zapisano regułę SCT.");
+    setRuleForm(emptyRuleForm);
+    await loadSctRules();
+  }
+
+  async function deleteRule(ruleId: number) {
+    const response = await fetch(`/api/admin/sct-rules/${ruleId}`, {
+      method: "DELETE"
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    setStatusMessage("Usunięto regułę SCT.");
+    setRuleForm(emptyRuleForm);
+    await loadSctRules();
+  }
+
+  async function withStatus(action: () => Promise<void>) {
+    try {
+      setParkingError(null);
+      await action();
+    } catch (requestError) {
+      setParkingError(requestError instanceof Error ? requestError.message : "Operation failed.");
+    }
+  }
 
   return (
     <main style={styles.page}>
@@ -171,32 +619,28 @@ export default function App() {
         <header style={styles.header}>
           <h1 style={styles.title}>Parking Admin Kraków</h1>
           <p style={styles.lead}>
-            Minimalny panel administracyjny do przeglądania i dodawania parkingów.
-            Dane są pobierane bezpośrednio z backendu MVP.
+            Panel domyka operacyjne MVP: parkingi, obłożenie, taryfy, konfigurację kategorii miejsc
+            oraz reguły SCT.
           </p>
         </header>
 
-        <div style={styles.layout}>
+        {statusMessage ? <div style={{ ...styles.feedback, ...styles.success }}>{statusMessage}</div> : null}
+        {parkingError ? <div style={{ ...styles.feedback, ...styles.error }}>{parkingError}</div> : null}
+
+        <div style={styles.grid}>
           <section style={styles.card}>
             <div style={styles.cardHeader}>
               <div>
-                <h2 style={{ margin: 0 }}>Lista parkingów</h2>
-                <p style={styles.helper}>Aktualny stan wystawiony przez `/api/admin/parking-lots`.</p>
+                <h2 style={styles.sectionTitle}>Parkingi</h2>
+                <p style={styles.helper}>Lista, wybór aktywnego parkingu i podstawowe akcje administracyjne.</p>
               </div>
 
-              <button
-                type="button"
-                style={styles.button}
-                onClick={() => void loadParkingLots(true)}
-                disabled={refreshing}
-              >
-                {refreshing ? "Odświeżanie..." : "Odśwież"}
+              <button type="button" style={styles.button} onClick={() => void loadParkingLots()}>
+                Odśwież
               </button>
             </div>
 
-            {error ? <div style={styles.error}>Nie udało się pobrać parkingów: {error}</div> : null}
-
-            {loading ? (
+            {loadingParkingLots ? (
               <p style={styles.helper}>Ładowanie parkingów...</p>
             ) : (
               <div style={styles.tableWrapper}>
@@ -205,45 +649,479 @@ export default function App() {
                     <tr>
                       <th style={styles.th}>Parking</th>
                       <th style={styles.th}>Strefa</th>
-                      <th style={styles.th}>Adres</th>
                       <th style={styles.th}>Obłożenie</th>
-                      <th style={styles.th}>Cena</th>
+                      <th style={styles.th}>Akcje</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {parkingLots.map((parkingLot) => {
-                      const tariff = parkingLot.tariffs?.[0];
-                      return (
-                        <tr key={parkingLot.id}>
-                          <td style={styles.td}>
-                            <strong>{parkingLot.name}</strong>
-                            <div style={styles.helper}>{parkingLot.parkingType}</div>
-                          </td>
-                          <td style={styles.td}>
-                            <span style={styles.badge}>{parkingLot.zone}</span>
-                          </td>
-                          <td style={styles.td}>{parkingLot.address}</td>
-                          <td style={styles.td}>
-                            {parkingLot.occupiedSpots} / {parkingLot.totalSpots}
-                          </td>
-                          <td style={styles.td}>
-                            {tariff ? `${tariff.pricePerHour} ${tariff.currency}/h` : "Brak taryfy"}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {parkingLots.map((parkingLot) => (
+                      <tr key={parkingLot.id}>
+                        <td style={styles.td}>
+                          <strong>{parkingLot.name}</strong>
+                          <div style={styles.helper}>{parkingLot.address}</div>
+                        </td>
+                        <td style={styles.td}>
+                          <span style={styles.badge}>{parkingLot.zone}</span>
+                        </td>
+                        <td style={styles.td}>
+                          {parkingLot.occupiedSpots} / {parkingLot.totalSpots}
+                        </td>
+                        <td style={styles.td}>
+                          <div style={styles.actions}>
+                            <button
+                              type="button"
+                              style={styles.subtleButton}
+                              onClick={() => setSelectedParkingId(parkingLot.id)}
+                            >
+                              Szczegóły
+                            </button>
+                            <button
+                              type="button"
+                              style={styles.subtleButton}
+                              onClick={() => setEditingParking(parkingLot)}
+                            >
+                              Edytuj
+                            </button>
+                            <button
+                              type="button"
+                              style={styles.dangerButton}
+                              onClick={() => void withStatus(() => handleParkingDelete(parkingLot.id))}
+                            >
+                              Usuń
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
             )}
           </section>
 
+          <div style={styles.stack}>
+            <section style={styles.card}>
+              <div style={styles.cardHeader}>
+                <div>
+                  <h2 style={styles.sectionTitle}>{editingParking ? "Edytuj parking" : "Dodaj parking"}</h2>
+                  <p style={styles.helper}>
+                    Formularz tworzenia i edycji podstawowych danych parkingu.
+                  </p>
+                </div>
+                {editingParking ? (
+                  <button type="button" style={styles.subtleButton} onClick={() => setEditingParking(null)}>
+                    Anuluj edycję
+                  </button>
+                ) : null}
+              </div>
+
+              <ParkingLotForm
+                initialData={editingParking ? mapParkingToFormValues(editingParking) : null}
+                onSaved={(savedParking) => withStatus(() => handleParkingSaved(savedParking))}
+              />
+            </section>
+
+            <section style={styles.card}>
+              <div style={styles.cardHeader}>
+                <div>
+                  <h2 style={styles.sectionTitle}>Reguły SCT</h2>
+                  <p style={styles.helper}>
+                    Aktualne reguły wjazdu do stref, edytowalne z poziomu MVP.
+                  </p>
+                </div>
+              </div>
+
+              <form style={styles.formGrid} onSubmit={(event) => void withStatus(() => submitRule(event))}>
+                <div style={styles.formRow}>
+                  <label style={styles.field}>
+                    <span style={styles.label}>Strefa</span>
+                    <select
+                      style={styles.input}
+                      value={ruleForm.zone}
+                      onChange={(event) =>
+                        setRuleForm((current) => ({
+                          ...current,
+                          zone: event.target.value as SctRuleForm["zone"]
+                        }))
+                      }
+                    >
+                      <option value="ZONE_A">ZONE_A</option>
+                      <option value="ZONE_B">ZONE_B</option>
+                      <option value="ZONE_C">ZONE_C</option>
+                    </select>
+                  </label>
+
+                  <label style={styles.field}>
+                    <span style={styles.label}>Paliwo</span>
+                    <select
+                      style={styles.input}
+                      value={ruleForm.fuelType}
+                      onChange={(event) =>
+                        setRuleForm((current) => ({
+                          ...current,
+                          fuelType: event.target.value as SctRuleForm["fuelType"]
+                        }))
+                      }
+                    >
+                      <option value="PETROL">PETROL</option>
+                      <option value="DIESEL">DIESEL</option>
+                      <option value="LPG">LPG</option>
+                      <option value="HYBRID">HYBRID</option>
+                      <option value="ELECTRIC">ELECTRIC</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div style={styles.formRow}>
+                  <label style={styles.field}>
+                    <span style={styles.label}>Min. norma</span>
+                    <select
+                      style={styles.input}
+                      value={ruleForm.minEmissionStandard}
+                      onChange={(event) =>
+                        setRuleForm((current) => ({ ...current, minEmissionStandard: event.target.value }))
+                      }
+                    >
+                      <option value="EURO_1">EURO_1</option>
+                      <option value="EURO_2">EURO_2</option>
+                      <option value="EURO_3">EURO_3</option>
+                      <option value="EURO_4">EURO_4</option>
+                      <option value="EURO_5">EURO_5</option>
+                      <option value="EURO_6">EURO_6</option>
+                      <option value="ELECTRIC">ELECTRIC</option>
+                    </select>
+                  </label>
+
+                  <label style={styles.field}>
+                    <span style={styles.label}>Dozwolony</span>
+                    <select
+                      style={styles.input}
+                      value={String(ruleForm.allowed)}
+                      onChange={(event) =>
+                        setRuleForm((current) => ({ ...current, allowed: event.target.value === "true" }))
+                      }
+                    >
+                      <option value="true">TAK</option>
+                      <option value="false">NIE</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div style={styles.formRow}>
+                  <label style={styles.field}>
+                    <span style={styles.label}>Valid from</span>
+                    <input
+                      style={styles.input}
+                      type="date"
+                      value={ruleForm.validFrom}
+                      onChange={(event) => setRuleForm((current) => ({ ...current, validFrom: event.target.value }))}
+                    />
+                  </label>
+
+                  <label style={styles.field}>
+                    <span style={styles.label}>Valid to</span>
+                    <input
+                      style={styles.input}
+                      type="date"
+                      value={ruleForm.validTo}
+                      onChange={(event) => setRuleForm((current) => ({ ...current, validTo: event.target.value }))}
+                    />
+                  </label>
+                </div>
+
+                <label style={styles.field}>
+                  <span style={styles.label}>Opis</span>
+                  <input
+                    style={styles.input}
+                    value={ruleForm.description}
+                    onChange={(event) => setRuleForm((current) => ({ ...current, description: event.target.value }))}
+                    placeholder="Opis uchwały lub wyjątku"
+                  />
+                </label>
+
+                <div style={styles.actions}>
+                  <button type="submit" style={styles.button}>
+                    {ruleForm.id ? "Zapisz regułę" : "Dodaj regułę"}
+                  </button>
+                  {ruleForm.id ? (
+                    <button type="button" style={styles.subtleButton} onClick={() => setRuleForm(emptyRuleForm)}>
+                      Anuluj edycję
+                    </button>
+                  ) : null}
+                </div>
+              </form>
+
+              <div style={{ ...styles.tableWrapper, marginTop: "20px" }}>
+                <table style={styles.table}>
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>Reguła</th>
+                      <th style={styles.th}>Zakres</th>
+                      <th style={styles.th}>Akcje</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sctRules.map((rule) => (
+                      <tr key={rule.id}>
+                        <td style={styles.td}>
+                          <strong>{rule.zone}</strong>
+                          <div style={styles.helper}>
+                            {rule.fuelType} • {rule.minEmissionStandard} • {rule.allowed ? "DOZWOLONY" : "ZABRONIONY"}
+                          </div>
+                        </td>
+                        <td style={styles.td}>
+                          {rule.validFrom}
+                          {rule.validTo ? ` - ${rule.validTo}` : " - bezterminowo"}
+                        </td>
+                        <td style={styles.td}>
+                          <div style={styles.actions}>
+                            <button type="button" style={styles.subtleButton} onClick={() => setRuleForm(mapRuleToForm(rule))}>
+                              Edytuj
+                            </button>
+                            <button
+                              type="button"
+                              style={styles.dangerButton}
+                              onClick={() => void withStatus(() => deleteRule(rule.id))}
+                            >
+                              Usuń
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div style={{ ...styles.stack, marginTop: "24px" }}>
           <section style={styles.card}>
-            <h2 style={{ marginTop: 0 }}>Dodaj parking</h2>
-            <p style={styles.helper}>
-              Formularz wysyła `POST /api/admin/parking-lots` z podstawowymi polami wymaganymi w MVP.
-            </p>
-            <ParkingLotForm onCreated={() => loadParkingLots(true)} />
+            <div style={styles.cardHeader}>
+              <div>
+                <h2 style={styles.sectionTitle}>Wybrany parking</h2>
+                <p style={styles.helper}>
+                  Konfiguracja obłożenia, kategorii miejsc i taryf dla aktywnego parkingu.
+                </p>
+              </div>
+              {selectedParking ? <span style={styles.badge}>{selectedParking.name}</span> : null}
+            </div>
+
+            {!selectedParking ? (
+              <p style={styles.helper}>Wybierz parking z listy, aby zobaczyć szczegóły.</p>
+            ) : (
+              <div style={styles.stack}>
+                {selectedParkingSummary ? (
+                  <div style={styles.summaryGrid}>
+                    <div style={styles.summaryCard}>
+                      <strong>Dostępne miejsca</strong>
+                      <div style={styles.helper}>{selectedParkingSummary.available}</div>
+                    </div>
+                    <div style={styles.summaryCard}>
+                      <strong>Taryfy</strong>
+                      <div style={styles.helper}>{selectedParkingSummary.tariffs}</div>
+                    </div>
+                    <div style={styles.summaryCard}>
+                      <strong>Kategorie miejsc</strong>
+                      <div style={styles.helper}>{selectedParkingSummary.categories}</div>
+                    </div>
+                  </div>
+                ) : null}
+
+                <form style={styles.formGrid} onSubmit={(event) => void withStatus(() => submitOccupancy(event))}>
+                  <div style={styles.formRow}>
+                    <label style={styles.field}>
+                      <span style={styles.label}>Obłożenie parkingu</span>
+                      <input
+                        style={styles.input}
+                        type="number"
+                        min="0"
+                        max={selectedParking.totalSpots}
+                        value={occupancyValue}
+                        onChange={(event) => setOccupancyValue(event.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <button type="submit" style={styles.button}>
+                    Zapisz obłożenie
+                  </button>
+                </form>
+
+                <form style={styles.formGrid} onSubmit={(event) => void withStatus(() => submitSpots(event))}>
+                  <h3 style={{ margin: 0 }}>Kategorie miejsc</h3>
+                  {spotForms.map((spot, index) => (
+                    <div style={styles.formRow} key={spot.category}>
+                      <label style={styles.field}>
+                        <span style={styles.label}>{spot.category} total</span>
+                        <input
+                          style={styles.input}
+                          type="number"
+                          min="0"
+                          value={spot.total}
+                          onChange={(event) =>
+                            setSpotForms((current) =>
+                              current.map((entry, entryIndex) =>
+                                entryIndex === index ? { ...entry, total: event.target.value } : entry
+                              )
+                            )
+                          }
+                        />
+                      </label>
+                      <label style={styles.field}>
+                        <span style={styles.label}>{spot.category} occupied</span>
+                        <input
+                          style={styles.input}
+                          type="number"
+                          min="0"
+                          value={spot.occupied}
+                          onChange={(event) =>
+                            setSpotForms((current) =>
+                              current.map((entry, entryIndex) =>
+                                entryIndex === index ? { ...entry, occupied: event.target.value } : entry
+                              )
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
+                  ))}
+                  <button type="submit" style={styles.button}>
+                    Zapisz kategorie miejsc
+                  </button>
+                </form>
+
+                <form style={styles.formGrid} onSubmit={(event) => void withStatus(() => submitTariff(event))}>
+                  <h3 style={{ margin: 0 }}>Taryfy</h3>
+                  <div style={styles.formRow}>
+                    <label style={styles.field}>
+                      <span style={styles.label}>Strefa</span>
+                      <select
+                        style={styles.input}
+                        value={tariffForm.zone}
+                        onChange={(event) =>
+                          setTariffForm((current) => ({
+                            ...current,
+                            zone: event.target.value as TariffForm["zone"]
+                          }))
+                        }
+                      >
+                        <option value="ZONE_A">ZONE_A</option>
+                        <option value="ZONE_B">ZONE_B</option>
+                        <option value="ZONE_C">ZONE_C</option>
+                      </select>
+                    </label>
+
+                    <label style={styles.field}>
+                      <span style={styles.label}>Dzień tygodnia</span>
+                      <input
+                        style={styles.input}
+                        value={tariffForm.dayOfWeek}
+                        onChange={(event) => setTariffForm((current) => ({ ...current, dayOfWeek: event.target.value }))}
+                        placeholder="np. MONDAY"
+                      />
+                    </label>
+                  </div>
+
+                  <div style={styles.formRow}>
+                    <label style={styles.field}>
+                      <span style={styles.label}>Godzina od</span>
+                      <input
+                        style={styles.input}
+                        type="time"
+                        value={tariffForm.hourFrom}
+                        onChange={(event) => setTariffForm((current) => ({ ...current, hourFrom: event.target.value }))}
+                      />
+                    </label>
+
+                    <label style={styles.field}>
+                      <span style={styles.label}>Godzina do</span>
+                      <input
+                        style={styles.input}
+                        type="time"
+                        value={tariffForm.hourTo}
+                        onChange={(event) => setTariffForm((current) => ({ ...current, hourTo: event.target.value }))}
+                      />
+                    </label>
+                  </div>
+
+                  <div style={styles.formRow}>
+                    <label style={styles.field}>
+                      <span style={styles.label}>Cena / h</span>
+                      <input
+                        style={styles.input}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={tariffForm.pricePerHour}
+                        onChange={(event) =>
+                          setTariffForm((current) => ({ ...current, pricePerHour: event.target.value }))
+                        }
+                      />
+                    </label>
+
+                    <label style={styles.field}>
+                      <span style={styles.label}>Waluta</span>
+                      <input
+                        style={styles.input}
+                        value={tariffForm.currency}
+                        onChange={(event) => setTariffForm((current) => ({ ...current, currency: event.target.value }))}
+                      />
+                    </label>
+                  </div>
+
+                  <div style={styles.actions}>
+                    <button type="submit" style={styles.button}>
+                      {tariffForm.id ? "Zapisz taryfę" : "Dodaj taryfę"}
+                    </button>
+                    {tariffForm.id ? (
+                      <button type="button" style={styles.subtleButton} onClick={() => setTariffForm(emptyTariffForm)}>
+                        Anuluj edycję
+                      </button>
+                    ) : null}
+                  </div>
+                </form>
+
+                <div style={styles.tableWrapper}>
+                  <table style={styles.table}>
+                    <thead>
+                      <tr>
+                        <th style={styles.th}>Taryfa</th>
+                        <th style={styles.th}>Zakres</th>
+                        <th style={styles.th}>Akcje</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedParking.tariffs.map((tariff) => (
+                        <tr key={tariff.id}>
+                          <td style={styles.td}>
+                            <strong>{tariff.pricePerHour} {tariff.currency}/h</strong>
+                            <div style={styles.helper}>{tariff.zone}</div>
+                          </td>
+                          <td style={styles.td}>
+                            {tariff.dayOfWeek || "codziennie"} • {tariff.hourFrom || "00:00"} - {tariff.hourTo || "23:59"}
+                          </td>
+                          <td style={styles.td}>
+                            <div style={styles.actions}>
+                              <button type="button" style={styles.subtleButton} onClick={() => setTariffForm(mapTariffToForm(tariff))}>
+                                Edytuj
+                              </button>
+                              <button
+                                type="button"
+                                style={styles.dangerButton}
+                                onClick={() => void withStatus(() => deleteTariff(tariff.id))}
+                              >
+                                Usuń
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </section>
         </div>
       </div>

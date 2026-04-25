@@ -13,6 +13,7 @@ public record ParkingLotResponse(
     Integer totalSpots,
     Integer occupiedSpots,
     String parkingType,
+    List<ParkingSpotResponse> spots,
     List<TariffResponse> tariffs
 ) {
 }

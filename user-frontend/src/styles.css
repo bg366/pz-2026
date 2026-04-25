@@ -95,6 +95,11 @@ select {
   color: #155e75;
 }
 
+.button--link {
+  background: #ecfccb;
+  color: #3f6212;
+}
+
 .tab:hover,
 .button:hover {
   transform: translateY(-1px);
@@ -133,6 +138,10 @@ select {
   gap: 16px;
 }
 
+.form-grid--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .field {
   display: grid;
   gap: 8px;
@@ -166,6 +175,28 @@ select {
   color: #be123c;
 }
 
+.feedback--empty {
+  background: #f8fafc;
+  color: #334155;
+}
+
+.filter-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.1);
+  color: #0f766e;
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .results-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -178,6 +209,13 @@ select {
   align-items: flex-start;
   gap: 16px;
   margin-bottom: 18px;
+}
+
+.result-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
 }
 
 .badge {
@@ -225,6 +263,10 @@ select {
 }
 
 @media (max-width: 720px) {
+  .form-grid--three {
+    grid-template-columns: 1fr;
+  }
+
   .result-card__header,
   .details {
     grid-template-columns: 1fr;

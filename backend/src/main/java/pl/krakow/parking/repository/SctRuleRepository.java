@@ -11,6 +11,8 @@ import pl.krakow.parking.model.SctRule;
 
 public interface SctRuleRepository extends JpaRepository<SctRule, Long> {
 
+    List<SctRule> findAllByOrderByZoneAscFuelTypeAscValidFromDesc();
+
     @Query("""
         select r
         from SctRule r
