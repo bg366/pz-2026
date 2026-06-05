@@ -4,6 +4,7 @@ import {
   getParkingSessions,
   startParkingSession,
   requestSessionPayment,
+  initiateSessionPayment,
   confirmSessionPayment,
   cancelParkingSession,
   getAllActiveParkings
@@ -85,9 +86,6 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [paymentStep, setPaymentStep] = useState<PaymentStep | null>(null);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
-  const [cardNumber, setCardNumber] = useState("4242 4242 4242 4242");
-  const [cardExpiry, setCardExpiry] = useState("12/26");
-  const [cardCvc, setCardCvc] = useState("123");
 
   const selectedParking = parkingOptions.find((p) => String(p.id) === parkingLotId) ?? null;
   const isOpen = selectedParking?.accessType === "OPEN";
@@ -124,6 +122,16 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
   }
 
   useEffect(() => { void load(); }, [auth]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("session_paynow");
+    if (!token || !auth) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    confirmSessionPayment(token)
+      .then(() => { setStatus("Platnosc Paynow potwierdzona! Mozesz opuscic parking."); void load(); })
+      .catch(() => { setError("Nie udalo sie potwierdzic platnosci Paynow."); });
+  }, [auth]);
 
   async function handleStart(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -183,6 +191,11 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
     setPaymentProcessing(true);
     setError(null);
     try {
+      const initiated = await initiateSessionPayment(paymentStep.token);
+      if (initiated.redirectUrl) {
+        window.location.href = initiated.redirectUrl;
+        return;
+      }
       await confirmSessionPayment(paymentStep.token);
       setPaymentStep(null);
       setStatus("Platnosc potwierdzona! Mozesz opuscic parking.");
@@ -226,34 +239,12 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
           <p style={{ margin: 0, color: "#4b5563", fontSize: "14px" }}>
             Parking: <strong>{paymentStep.parkingName}</strong>
           </p>
-          <p style={{ margin: 0, fontSize: "22px", fontWeight: 700, color: "#111827" }}>
+          <p style={{ margin: 0, fontSize: "28px", fontWeight: 700, color: "#111827" }}>
             {paymentStep.amount != null
               ? `${paymentStep.amount.toFixed(2)} ${paymentStep.currency ?? "PLN"}`
               : "0,00 PLN (brak taryfy)"}
           </p>
-
           {error ? <div className="feedback feedback--error">{error}</div> : null}
-
-          <div className="form-grid form-grid--three" style={{ gap: "12px" }}>
-            <label className="field" style={{ gridColumn: "1 / -1" }}>
-              <span>Numer karty</span>
-              <input value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} maxLength={19} />
-            </label>
-            <label className="field">
-              <span>Data waznosci</span>
-              <input value={cardExpiry} onChange={(e) => setCardExpiry(e.target.value)} maxLength={5} />
-            </label>
-            <label className="field">
-              <span>CVV</span>
-              <input value={cardCvc} onChange={(e) => setCardCvc(e.target.value)} maxLength={3} type="password" />
-            </label>
-          </div>
-
-          <div style={{ fontSize: "12px", color: "#6b7280", background: "#f0f9ff", padding: "8px 12px", borderRadius: "6px" }}>
-            Srodowisko testowe — zadne pieniadze nie sa pobierane.
-            Karta testowa: <strong>4242 4242 4242 4242</strong>.
-          </div>
-
           <div className="form-actions">
             <button
               type="button"
@@ -262,7 +253,7 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
               disabled={paymentProcessing}
               style={{ background: "#0891b2", borderColor: "#0891b2" }}
             >
-              {paymentProcessing ? "Przetwarzanie..." : "Zaplac i wjedz"}
+              {paymentProcessing ? "Przekierowanie..." : "Zaplac przez Paynow"}
             </button>
           </div>
         </div>

@@ -2,6 +2,7 @@ package pl.krakow.parking.controller;
 
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -37,6 +38,18 @@ public class ParkingSessionController {
         @RequestBody @Valid StartSessionRequest request
     ) {
         return ResponseEntity.ok(sessionService.startSession(userDetails.getUsername(), request));
+    }
+
+    @PostMapping("/initiate/{token}")
+    public ResponseEntity<Map<String, String>> initiatePayment(
+        @AuthenticationPrincipal UserDetails userDetails,
+        @PathVariable String token
+    ) {
+        String redirectUrl = sessionService.initiateSessionPayment(token, userDetails.getUsername());
+        if (redirectUrl != null) {
+            return ResponseEntity.ok(Map.of("redirectUrl", redirectUrl));
+        }
+        return ResponseEntity.ok(Map.of());
     }
 
     @PostMapping("/{id}/pay")

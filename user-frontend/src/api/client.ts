@@ -315,6 +315,14 @@ export async function startParkingSession(data: StartSessionRequest): Promise<Pa
   return handleResponse<ParkingSession>(response);
 }
 
+export async function initiateSessionPayment(token: string): Promise<{ redirectUrl?: string }> {
+  const response = await fetch(`/api/me/parking-sessions/initiate/${token}`, {
+    method: "POST",
+    headers: authHeaders()
+  });
+  return handleResponse<{ redirectUrl?: string }>(response);
+}
+
 export async function requestSessionPayment(sessionId: number): Promise<ParkingSession> {
   const response = await fetch(`/api/me/parking-sessions/${sessionId}/pay`, {
     method: "POST",

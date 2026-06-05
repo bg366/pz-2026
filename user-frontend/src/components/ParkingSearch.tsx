@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import type { FormEvent } from "react";
-import { searchParkings, startParkingSession, requestSessionPayment, confirmSessionPayment } from "../api/client";
+import { searchParkings, startParkingSession, requestSessionPayment, initiateSessionPayment, confirmSessionPayment } from "../api/client";
 import type { FuelType, EmissionStandard, ParkingSearchResult, UserVehicle, AuthState, ParkingSession } from "../api/types";
 
 const FUEL_LABELS: Record<string, string> = { PETROL: "Benzyna", DIESEL: "Diesel", LPG: "LPG", HYBRID: "Hybryda", ELECTRIC: "Elektryczny" };
@@ -75,9 +75,6 @@ export default function ParkingSearch({ auth, activeVehicle, activeSessions, onS
   const [paymentPanel, setPaymentPanel] = useState<PaymentPanel | null>(null);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [cardNumber, setCardNumber] = useState("4242 4242 4242 4242");
-  const [cardExpiry, setCardExpiry] = useState("12/26");
-  const [cardCvc, setCardCvc] = useState("123");
 
   useEffect(() => {
     if (!activeVehicle) return;
@@ -203,6 +200,11 @@ export default function ParkingSearch({ auth, activeVehicle, activeSessions, onS
     setPaymentProcessing(true);
     setPaymentError(null);
     try {
+      const initiated = await initiateSessionPayment(paymentPanel.token);
+      if (initiated.redirectUrl) {
+        window.location.href = initiated.redirectUrl;
+        return;
+      }
       await confirmSessionPayment(paymentPanel.token);
       setPaymentPanel(null);
       onSessionsChange();
@@ -331,28 +333,13 @@ export default function ParkingSearch({ auth, activeVehicle, activeSessions, onS
         <div className="card stack" style={{ border: "2px solid #0891b2" }}>
           <h3 style={{ margin: 0, color: "#0e7490" }}>Platnosc za pobyt</h3>
           <p style={{ margin: 0, color: "#4b5563", fontSize: "14px" }}>Parking: <strong>{paymentPanel.parkingName}</strong></p>
-          <p style={{ margin: 0, fontSize: "22px", fontWeight: 700, color: "#111827" }}>
+          <p style={{ margin: 0, fontSize: "28px", fontWeight: 700, color: "#111827" }}>
             {paymentPanel.amount != null ? `${paymentPanel.amount.toFixed(2)} ${paymentPanel.currency ?? "PLN"}` : "0,00 PLN (brak taryfy)"}
           </p>
           {paymentError ? <div className="feedback feedback--error">{paymentError}</div> : null}
-          <div className="form-grid form-grid--three" style={{ gap: "12px" }}>
-            <label className="field" style={{ gridColumn: "1 / -1" }}>
-              <span>Numer karty</span>
-              <input value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} maxLength={19} />
-            </label>
-            <label className="field"><span>Data waznosci</span>
-              <input value={cardExpiry} onChange={(e) => setCardExpiry(e.target.value)} maxLength={5} />
-            </label>
-            <label className="field"><span>CVV</span>
-              <input value={cardCvc} onChange={(e) => setCardCvc(e.target.value)} maxLength={3} type="password" />
-            </label>
-          </div>
-          <div style={{ fontSize: "12px", color: "#6b7280", background: "#f0f9ff", padding: "8px 12px", borderRadius: "6px" }}>
-            Srodowisko testowe — karta testowa: <strong>4242 4242 4242 4242</strong>.
-          </div>
           <div className="form-actions">
             <button type="button" className="button" onClick={() => void handlePaymentConfirm()} disabled={paymentProcessing} style={{ background: "#0891b2", borderColor: "#0891b2" }}>
-              {paymentProcessing ? "Przetwarzanie..." : "Zaplac i wjedz"}
+              {paymentProcessing ? "Przekierowanie..." : "Zaplac przez Paynow"}
             </button>
             <button type="button" className="button button--ghost" onClick={() => setPaymentPanel(null)}>
               Anuluj

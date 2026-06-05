@@ -17,9 +17,11 @@ import pl.krakow.parking.model.ParkingLotStatus;
 import pl.krakow.parking.model.ParkingSession;
 import pl.krakow.parking.model.ParkingSessionStatus;
 import pl.krakow.parking.model.User;
+import pl.krakow.parking.config.PaynowProperties;
 import pl.krakow.parking.repository.ParkingLotRepository;
 import pl.krakow.parking.repository.ParkingSessionRepository;
 import pl.krakow.parking.repository.UserRepository;
+import pl.krakow.parking.service.PaynowClient.PaymentInitResult;
 
 @Service
 public class ParkingSessionService {
@@ -28,17 +30,23 @@ public class ParkingSessionService {
     private final ParkingLotRepository parkingLotRepository;
     private final UserRepository userRepository;
     private final ParkingFeeService parkingFeeService;
+    private final PaynowClient paynowClient;
+    private final PaynowProperties paynowProps;
 
     public ParkingSessionService(
         ParkingSessionRepository sessionRepository,
         ParkingLotRepository parkingLotRepository,
         UserRepository userRepository,
-        ParkingFeeService parkingFeeService
+        ParkingFeeService parkingFeeService,
+        PaynowClient paynowClient,
+        PaynowProperties paynowProps
     ) {
         this.sessionRepository = sessionRepository;
         this.parkingLotRepository = parkingLotRepository;
         this.userRepository = userRepository;
         this.parkingFeeService = parkingFeeService;
+        this.paynowClient = paynowClient;
+        this.paynowProps = paynowProps;
     }
 
     @Transactional(readOnly = true)
@@ -170,6 +178,25 @@ public class ParkingSessionService {
 
         session.setStatus(ParkingSessionStatus.CANCELLED);
         return toResponse(sessionRepository.save(session));
+    }
+
+    @Transactional
+    public String initiateSessionPayment(String token, String email) {
+        ParkingSession session = sessionRepository.findByPaymentToken(token)
+            .orElseThrow(() -> new ResourceNotFoundException("Payment token not found."));
+        if (!session.getUser().getEmail().equalsIgnoreCase(email)) {
+            throw new AccessDeniedException("This session does not belong to you.");
+        }
+        if (session.getStatus() != ParkingSessionStatus.PAYMENT_PENDING) {
+            throw new IllegalArgumentException("Sesja nie oczekuje na platnosc.");
+        }
+        String description = "Parking " + session.getParkingLot().getName()
+            + " — " + session.getRegistrationNumber();
+        String baseUrl = paynowProps.getContinueUrl();
+        String sessionContinueUrl = baseUrl.replace("/rezerwacje", "/sesje") + "?session_paynow=" + token;
+        BigDecimal amount = session.getAmount() != null ? session.getAmount() : BigDecimal.ZERO;
+        PaymentInitResult result = paynowClient.initiatePayment(token, amount, description, email, sessionContinueUrl);
+        return result != null ? result.redirectUrl() : null;
     }
 
     private BigDecimal calculateFeeSafely(Long parkingLotId, int minutes) {

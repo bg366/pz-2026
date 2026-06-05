@@ -40,7 +40,7 @@ public class PaynowClient {
     /**
      * Initiates a Paynow payment. Returns null if Paynow is not configured (use local simulation instead).
      */
-    public PaymentInitResult initiatePayment(String internalToken, BigDecimal amount, String description, String buyerEmail) {
+    public PaymentInitResult initiatePayment(String internalToken, BigDecimal amount, String description, String buyerEmail, String continueUrl) {
         if (!props.isConfigured()) {
             return null;
         }
@@ -54,7 +54,7 @@ public class PaynowClient {
                 "externalId", internalToken,
                 "description", description,
                 "buyer", Map.of("email", buyerEmail),
-                "continueUrl", props.getContinueUrl() + "?paynow=" + internalToken
+                "continueUrl", continueUrl
             ));
 
             String signature = computeHmac(body, props.getSignatureKey());

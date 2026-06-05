@@ -72,9 +72,6 @@ export default function Reservations({ auth, initialParkingId }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [paymentStep, setPaymentStep] = useState<PaymentStep | null>(null);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
-  const [cardNumber, setCardNumber] = useState("4242 4242 4242 4242");
-  const [cardExpiry, setCardExpiry] = useState("12/26");
-  const [cardCvc, setCardCvc] = useState("123");
 
   useEffect(() => {
     getAllActiveParkings()
@@ -227,37 +224,15 @@ export default function Reservations({ auth, initialParkingId }: Props) {
           <p style={{ margin: 0, color: "#4b5563", fontSize: "14px" }}>
             Parking: <strong>{paymentStep.parkingName}</strong>
           </p>
-          <p style={{ margin: 0, fontSize: "22px", fontWeight: 700, color: "#111827" }}>
+          <p style={{ margin: 0, fontSize: "28px", fontWeight: 700, color: "#111827" }}>
             {paymentStep.amount != null
               ? `${paymentStep.amount.toFixed(2)} ${paymentStep.currency ?? "PLN"}`
               : "0,00 PLN (brak taryfy)"}
           </p>
-
           {error ? <div className="feedback feedback--error">{error}</div> : null}
-
-          <div className="form-grid form-grid--three" style={{ gap: "12px" }}>
-            <label className="field" style={{ gridColumn: "1 / -1" }}>
-              <span>Numer karty</span>
-              <input value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} placeholder="0000 0000 0000 0000" maxLength={19} />
-            </label>
-            <label className="field">
-              <span>Data waznosci</span>
-              <input value={cardExpiry} onChange={(e) => setCardExpiry(e.target.value)} placeholder="MM/RR" maxLength={5} />
-            </label>
-            <label className="field">
-              <span>CVV</span>
-              <input value={cardCvc} onChange={(e) => setCardCvc(e.target.value)} placeholder="123" maxLength={3} type="password" />
-            </label>
-          </div>
-
-          <div style={{ fontSize: "12px", color: "#6b7280", background: "#f9fafb", padding: "8px 12px", borderRadius: "6px" }}>
-            Srodowisko testowe — zadne pieniadze nie sa pobierane.
-            Karta testowa: <strong>4242 4242 4242 4242</strong>, dowolna data przyszla, dowolny CVV.
-          </div>
-
           <div className="form-actions">
             <button type="button" className="button" onClick={() => void handleConfirmPayment()} disabled={paymentProcessing} style={{ background: "#16a34a", borderColor: "#16a34a" }}>
-              {paymentProcessing ? "Przetwarzanie..." : "Zaplac teraz"}
+              {paymentProcessing ? "Przekierowanie..." : "Zaplac przez Paynow"}
             </button>
             <button type="button" className="button button--ghost" onClick={() => void handleCancelPayment()} disabled={paymentProcessing}>
               Anuluj rezerwacje

@@ -8,6 +8,7 @@ import pl.krakow.parking.exception.ResourceNotFoundException;
 import pl.krakow.parking.model.Payment;
 import pl.krakow.parking.model.PaymentStatus;
 import pl.krakow.parking.model.ReservationStatus;
+import pl.krakow.parking.config.PaynowProperties;
 import pl.krakow.parking.repository.PaymentRepository;
 
 @Service
@@ -16,15 +17,18 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final NotificationService notificationService;
     private final PaynowClient paynowClient;
+    private final PaynowProperties props;
 
     public PaymentService(
         PaymentRepository paymentRepository,
         NotificationService notificationService,
-        PaynowClient paynowClient
+        PaynowClient paynowClient,
+        PaynowProperties props
     ) {
         this.paymentRepository = paymentRepository;
         this.notificationService = notificationService;
         this.paynowClient = paynowClient;
+        this.props = props;
     }
 
     @Transactional
@@ -35,7 +39,8 @@ public class PaymentService {
         }
         String description = "Rezerwacja #" + payment.getReservation().getId()
             + " — " + payment.getReservation().getParkingLot().getName();
-        var result = paynowClient.initiatePayment(token, payment.getAmount(), description, email);
+        String continueUrl = props.getContinueUrl() + "?paynow=" + token;
+        var result = paynowClient.initiatePayment(token, payment.getAmount(), description, email, continueUrl);
         String redirectUrl = result != null ? result.redirectUrl() : null;
         return toResponse(payment, redirectUrl);
     }
