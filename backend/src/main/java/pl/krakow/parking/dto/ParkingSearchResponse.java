@@ -22,6 +22,8 @@ public record ParkingSearchResponse(
     ParkingPermission parkingPermission,
     String permissionReason,
     String openingHours,
+    BigDecimal predictedAmount,
+    String predictedPricingMode,
     BigDecimal pricePerHour,
     String currency,
     String parkingType

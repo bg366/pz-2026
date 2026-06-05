@@ -30,6 +30,8 @@ type SearchResult = {
   parkingPermission: "ALL_SPOTS" | "SCT_SPOTS_ONLY" | "NOT_ALLOWED";
   permissionReason: string;
   openingHours: string;
+  predictedAmount: number | null;
+  predictedPricingMode: string | null;
   pricePerHour: number | null;
   currency: string | null;
   parkingType: string;
@@ -39,7 +41,13 @@ const initialState = {
   lat: "50.0615",
   lng: "19.9370",
   radiusKm: "5",
+  name: "",
+  zone: "",
   maxPricePerHour: "",
+  durationMinutes: "",
+  onlyAvailable: false,
+  openNow: false,
+  sort: "DISTANCE",
   fuelType: "" as FuelType,
   emissionStandard: "" as EmissionStandard
 };
@@ -70,10 +78,15 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
   const activeFilters = useMemo(() => {
     return [
       form.maxPricePerHour ? `Do ${form.maxPricePerHour} PLN/h` : null,
+      form.name ? `Nazwa: ${form.name}` : null,
+      form.zone ? `Strefa: ${form.zone}` : null,
+      form.durationMinutes ? `Postój: ${form.durationMinutes} min` : null,
+      form.onlyAvailable ? "Tylko wolne" : null,
+      form.openNow ? "Otwarte teraz" : null,
       form.fuelType ? `Paliwo: ${form.fuelType}` : null,
       form.emissionStandard ? `Norma: ${form.emissionStandard}` : null
     ].filter(Boolean) as string[];
-  }, [form.emissionStandard, form.fuelType, form.maxPricePerHour]);
+  }, [form]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -91,6 +104,22 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
       if (form.maxPricePerHour) {
         params.set("maxPricePerHour", form.maxPricePerHour);
       }
+      if (form.name) {
+        params.set("name", form.name);
+      }
+      if (form.zone) {
+        params.set("zone", form.zone);
+      }
+      if (form.durationMinutes) {
+        params.set("durationMinutes", form.durationMinutes);
+      }
+      if (form.onlyAvailable) {
+        params.set("onlyAvailable", "true");
+      }
+      if (form.openNow) {
+        params.set("openNow", "true");
+      }
+      params.set("sort", form.sort);
 
       if (form.fuelType) {
         params.set("fuelType", form.fuelType);
@@ -192,6 +221,28 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
         </label>
 
         <label className="field">
+          <span>Nazwa parkingu</span>
+          <input
+            value={form.name}
+            onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+            placeholder="np. Wawel"
+          />
+        </label>
+
+        <label className="field">
+          <span>Strefa</span>
+          <select
+            value={form.zone}
+            onChange={(event) => setForm((current) => ({ ...current, zone: event.target.value }))}
+          >
+            <option value="">Wszystkie</option>
+            <option value="ZONE_A">ZONE_A</option>
+            <option value="ZONE_B">ZONE_B</option>
+            <option value="ZONE_C">ZONE_C</option>
+          </select>
+        </label>
+
+        <label className="field">
           <span>Maks. cena (PLN/h)</span>
           <input
             type="number"
@@ -203,6 +254,29 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
             }
             placeholder="np. 6.00"
           />
+        </label>
+
+        <label className="field">
+          <span>Czas postoju (min)</span>
+          <input
+            type="number"
+            min="1"
+            value={form.durationMinutes}
+            onChange={(event) => setForm((current) => ({ ...current, durationMinutes: event.target.value }))}
+            placeholder="np. 120"
+          />
+        </label>
+
+        <label className="field">
+          <span>Sortowanie</span>
+          <select
+            value={form.sort}
+            onChange={(event) => setForm((current) => ({ ...current, sort: event.target.value }))}
+          >
+            <option value="DISTANCE">Odległość</option>
+            <option value="PRICE">Cena</option>
+            <option value="AVAILABLE_SPOTS">Wolne miejsca</option>
+          </select>
         </label>
 
         <label className="field">
@@ -245,6 +319,22 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
         </label>
 
         <div className="form-actions">
+          <label className="inline-check">
+            <input
+              type="checkbox"
+              checked={form.onlyAvailable}
+              onChange={(event) => setForm((current) => ({ ...current, onlyAvailable: event.target.checked }))}
+            />
+            <span>Tylko z wolnymi miejscami</span>
+          </label>
+          <label className="inline-check">
+            <input
+              type="checkbox"
+              checked={form.openNow}
+              onChange={(event) => setForm((current) => ({ ...current, openNow: event.target.checked }))}
+            />
+            <span>Otwarte teraz</span>
+          </label>
           <button type="button" className="button button--ghost" onClick={useMyLocation}>
             Użyj mojej lokalizacji
           </button>
@@ -324,6 +414,14 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
                   {result.pricePerHour != null && result.currency
                     ? `${result.pricePerHour} ${result.currency}/h`
                     : "Brak taryfy"}
+                </dd>
+              </div>
+              <div>
+                <dt>Szacowany koszt</dt>
+                <dd>
+                  {result.predictedAmount != null && result.currency
+                    ? `${result.predictedAmount} ${result.currency} (${result.predictedPricingMode})`
+                    : "Podaj czas postoju"}
                 </dd>
               </div>
               <div>

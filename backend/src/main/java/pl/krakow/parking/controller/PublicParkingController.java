@@ -13,6 +13,8 @@ import pl.krakow.parking.dto.ParkingSearchRequest;
 import pl.krakow.parking.dto.ParkingSearchResponse;
 import pl.krakow.parking.model.EmissionStandard;
 import pl.krakow.parking.model.FuelType;
+import pl.krakow.parking.model.ParkingSearchSort;
+import pl.krakow.parking.model.ParkingZone;
 import pl.krakow.parking.service.ParkingLotService;
 
 @Validated
@@ -33,10 +35,29 @@ public class PublicParkingController {
         @RequestParam(defaultValue = "5") @DecimalMin("0.1") double radiusKm,
         @RequestParam(required = false) FuelType fuelType,
         @RequestParam(required = false) EmissionStandard emissionStandard,
-        @RequestParam(required = false) @DecimalMin("0.0") BigDecimal maxPricePerHour
+        @RequestParam(required = false) @DecimalMin("0.0") BigDecimal maxPricePerHour,
+        @RequestParam(required = false) String name,
+        @RequestParam(required = false) ParkingZone zone,
+        @RequestParam(defaultValue = "false") boolean onlyAvailable,
+        @RequestParam(defaultValue = "false") boolean openNow,
+        @RequestParam(defaultValue = "DISTANCE") ParkingSearchSort sort,
+        @RequestParam(required = false) Integer durationMinutes
     ) {
         return parkingLotService.searchNearby(
-            new ParkingSearchRequest(lat, lng, radiusKm, fuelType, emissionStandard, maxPricePerHour)
+            new ParkingSearchRequest(
+                lat,
+                lng,
+                radiusKm,
+                fuelType,
+                emissionStandard,
+                maxPricePerHour,
+                name,
+                zone,
+                onlyAvailable,
+                openNow,
+                sort,
+                durationMinutes
+            )
         );
     }
 }

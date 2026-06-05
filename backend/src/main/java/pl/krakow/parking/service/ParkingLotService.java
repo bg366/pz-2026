@@ -108,9 +108,14 @@ public class ParkingLotService {
         return parkingLotRepository.findNearby(request.lat(), request.lng(), request.radiusKm() * 1000.0d)
             .stream()
             .filter(parkingLot -> parkingLot.getStatus() == ParkingLotStatus.ACTIVE)
+            .filter(parkingLot -> matchesName(parkingLot, request.name()))
+            .filter(parkingLot -> request.zone() == null || parkingLot.getZone() == request.zone())
+            .filter(parkingLot -> !request.openNow() || !"CLOSED".equalsIgnoreCase(parkingLot.getOpeningHours()))
             .map(parkingLot -> toSearchResponse(parkingLot, request))
             .filter(response -> response.parkingPermission() != ParkingPermission.NOT_ALLOWED)
             .filter(response -> matchesPrice(response, request.maxPricePerHour()))
+            .filter(response -> !request.onlyAvailable() || response.availableSpots() > 0)
+            .sorted(searchComparator(request))
             .toList();
     }
 
@@ -173,6 +178,7 @@ public class ParkingLotService {
 
         BigDecimal pricePerHour = price != null ? price.getFirstHourPrice() : null;
         String currency = price != null ? CURRENCY : null;
+        PredictedCost predictedCost = predictCost(price, request.durationMinutes());
 
         return new ParkingSearchResponse(
             parkingLot.getId(),
@@ -191,6 +197,8 @@ public class ParkingLotService {
             parkingDecision.permission(),
             parkingDecision.reason(),
             parkingLot.getOpeningHours(),
+            predictedCost.amount(),
+            predictedCost.pricingMode(),
             pricePerHour,
             currency,
             parkingLot.getParkingType()
@@ -251,6 +259,55 @@ public class ParkingLotService {
         return response.pricePerHour().compareTo(maxPricePerHour) <= 0;
     }
 
+    private boolean matchesName(ParkingLot parkingLot, String name) {
+        if (name == null || name.isBlank()) {
+            return true;
+        }
+        return parkingLot.getName().toLowerCase().contains(name.toLowerCase());
+    }
+
+    private Comparator<ParkingSearchResponse> searchComparator(ParkingSearchRequest request) {
+        return switch (request.sort()) {
+            case PRICE -> Comparator.comparing(
+                ParkingSearchResponse::pricePerHour,
+                Comparator.nullsLast(BigDecimal::compareTo)
+            );
+            case AVAILABLE_SPOTS -> Comparator.comparing(ParkingSearchResponse::availableSpots).reversed();
+            case DISTANCE -> Comparator.comparing(ParkingSearchResponse::distanceKm);
+        };
+    }
+
+    private PredictedCost predictCost(Price price, Integer durationMinutes) {
+        if (price == null || durationMinutes == null || durationMinutes <= 0) {
+            return new PredictedCost(null, null);
+        }
+
+        long billedHours = (long) Math.ceil(durationMinutes / 60.0d);
+        BigDecimal hourlyAmount = BigDecimal.ZERO;
+        if (billedHours >= 1) {
+            hourlyAmount = hourlyAmount.add(price.getFirstHourPrice());
+        }
+        if (billedHours >= 2) {
+            hourlyAmount = hourlyAmount.add(price.getSecondHourPrice());
+        }
+        if (billedHours >= 3) {
+            hourlyAmount = hourlyAmount.add(price.getThirdHourPrice());
+        }
+        if (billedHours > 3) {
+            hourlyAmount = hourlyAmount.add(price.getNextHourPrice().multiply(BigDecimal.valueOf(billedHours - 3)));
+        }
+        hourlyAmount = hourlyAmount.setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal dailyAmount = price.getDailyPrice()
+            .multiply(BigDecimal.valueOf((long) Math.ceil(billedHours / 24.0d)))
+            .setScale(2, RoundingMode.HALF_UP);
+
+        if (dailyAmount.compareTo(hourlyAmount) < 0) {
+            return new PredictedCost(dailyAmount, "DAILY");
+        }
+        return new PredictedCost(hourlyAmount, "HOURLY");
+    }
+
     private ParkingDecision resolveParkingPermission(
         ParkingSearchRequest request,
         boolean sctAllowed,
@@ -278,6 +335,9 @@ public class ParkingLotService {
     }
 
     private record ParkingDecision(ParkingPermission permission, String reason) {
+    }
+
+    private record PredictedCost(BigDecimal amount, String pricingMode) {
     }
 
     private void validateSctOccupancy(Integer totalSctSpots, Integer occupiedSctSpots) {

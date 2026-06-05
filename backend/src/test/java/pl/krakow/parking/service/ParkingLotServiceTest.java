@@ -21,6 +21,7 @@ import pl.krakow.parking.model.FuelType;
 import pl.krakow.parking.model.ParkingLot;
 import pl.krakow.parking.model.ParkingLotStatus;
 import pl.krakow.parking.model.ParkingZone;
+import pl.krakow.parking.model.ParkingSearchSort;
 import pl.krakow.parking.repository.ParkingLotRepository;
 import pl.krakow.parking.repository.PriceRepository;
 
@@ -63,7 +64,20 @@ class ParkingLotServiceTest {
         );
 
         List<ParkingSearchResponse> responses = service.searchNearby(
-            new ParkingSearchRequest(50.0615, 19.9370, 5, null, null, null)
+            new ParkingSearchRequest(
+                50.0615,
+                19.9370,
+                5,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                false,
+                ParkingSearchSort.DISTANCE,
+                null
+            )
         );
 
         assertThat(responses).extracting(ParkingSearchResponse::name).containsExactly("Aktywny");
@@ -88,7 +102,20 @@ class ParkingLotServiceTest {
         );
 
         List<ParkingSearchResponse> responses = service.searchNearby(
-            new ParkingSearchRequest(50.0615, 19.9370, 5, FuelType.DIESEL, EmissionStandard.EURO_3, null)
+            new ParkingSearchRequest(
+                50.0615,
+                19.9370,
+                5,
+                FuelType.DIESEL,
+                EmissionStandard.EURO_3,
+                null,
+                null,
+                null,
+                false,
+                false,
+                ParkingSearchSort.DISTANCE,
+                null
+            )
         );
 
         assertThat(responses).isEmpty();
