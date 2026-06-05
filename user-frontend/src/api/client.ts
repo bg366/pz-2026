@@ -1,4 +1,4 @@
-import type { AuthState, UserVehicle, UserVehicleRequest, ParkingSearchResult, VehicleCheckResponse } from "./types";
+import type { AuthState, UserVehicle, UserVehicleRequest, ParkingSearchResult, VehicleCheckResponse, Reservation, ReservationRequest } from "./types";
 
 export const AUTH_STORAGE_KEY = "krakow-parking-user-auth";
 
@@ -147,6 +147,30 @@ export async function searchParkings(params: ParkingSearchParams): Promise<Parki
 
   const response = await fetch(`/api/parking-lots/search?${query.toString()}`);
   return handleResponse<ParkingSearchResult[]>(response);
+}
+
+// --- Reservations ---
+
+export async function getReservations(): Promise<Reservation[]> {
+  const response = await fetch("/api/me/reservations", { headers: authHeaders() });
+  return handleResponse<Reservation[]>(response);
+}
+
+export async function createReservation(data: ReservationRequest): Promise<Reservation> {
+  const response = await fetch("/api/me/reservations", {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(data)
+  });
+  return handleResponse<Reservation>(response);
+}
+
+export async function cancelReservation(id: number): Promise<Reservation> {
+  const response = await fetch(`/api/me/reservations/${id}`, {
+    method: "DELETE",
+    headers: authHeaders()
+  });
+  return handleResponse<Reservation>(response);
 }
 
 // --- Vehicle check (SCT) ---

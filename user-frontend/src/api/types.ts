@@ -64,3 +64,22 @@ export type VehicleCheckResponse = {
   canEnter: boolean;
   reason: string;
 };
+
+export type ReservationStatus = "CONFIRMED" | "CANCELLED" | "COMPLETED" | "EXPIRED";
+
+export type Reservation = {
+  id: number;
+  parkingLotId: number;
+  parkingLotName: string;
+  parkingLotAddress: string;
+  status: ReservationStatus;
+  startsAt: string;
+  endsAt: string;
+  createdAt: string;
+};
+
+export type ReservationRequest = {
+  parkingLotId: number;
+  startsAt: string;
+  endsAt: string;
+};

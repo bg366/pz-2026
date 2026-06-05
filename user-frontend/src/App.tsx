@@ -1,11 +1,12 @@
 import { useState } from "react";
 import ParkingSearch from "./components/ParkingSearch";
 import UserAccount from "./components/UserAccount";
+import Reservations from "./components/Reservations";
 import { readStoredAuth } from "./api/client";
 import type { AuthState, UserVehicle } from "./api/types";
 import VehicleCheck from "./components/VehicleCheck";
 
-type View = "parking" | "vehicle" | "profile";
+type View = "parking" | "vehicle" | "profile" | "reservations";
 
 export default function App() {
   const [view, setView] = useState<View>("parking");
@@ -49,6 +50,13 @@ export default function App() {
           >
             Profil
           </button>
+          <button
+            type="button"
+            className={view === "reservations" ? "tab tab--active" : "tab"}
+            onClick={() => setView("reservations")}
+          >
+            Rezerwacje
+          </button>
         </nav>
 
         <section className="panel">
@@ -56,6 +64,8 @@ export default function App() {
             <ParkingSearch activeVehicle={activeVehicle} />
           ) : view === "vehicle" ? (
             <VehicleCheck activeVehicle={activeVehicle} />
+          ) : view === "reservations" ? (
+            <Reservations auth={auth} />
           ) : (
             <UserAccount
               auth={auth}
