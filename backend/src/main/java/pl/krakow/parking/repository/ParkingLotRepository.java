@@ -29,4 +29,6 @@ public interface ParkingLotRepository extends JpaRepository<ParkingLot, Long> {
     );
 
     List<ParkingLot> findByZone(ParkingZone zone);
+
+    List<ParkingLot> findByOwnerEmailIgnoreCaseOrderByIdAsc(String ownerEmail);
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
+import type { ParkingLot } from "../api/types";
 
 export type ParkingLotPayload = {
   id?: number;
@@ -18,44 +19,10 @@ export type ParkingLotPayload = {
   parkingType: string;
 };
 
-type ParkingLotResponse = {
-  id: number;
-  name: string;
-  address: string;
-  description: string | null;
-  status: "ACTIVE" | "INACTIVE" | "TEMPORARILY_CLOSED";
-  zone: "ZONE_A" | "ZONE_B" | "ZONE_C";
-  latitude: number;
-  longitude: number;
-  totalSpots: number;
-  occupiedSpots: number;
-  totalSctSpots: number;
-  occupiedSctSpots: number;
-  openingHours: string;
-  parkingType: string;
-  spots: {
-    id: number;
-    category: "REGULAR" | "EV" | "DISABLED" | "SCT_READY";
-    total: number;
-    occupied: number;
-  }[];
-  price: {
-    id: number;
-    zone: "ZONE_A" | "ZONE_B" | "ZONE_C" | null;
-    parkingLotId: number | null;
-    firstHourPrice: number;
-    secondHourPrice: number;
-    thirdHourPrice: number;
-    nextHourPrice: number;
-    dailyPrice: number;
-    currency: string;
-  } | null;
-};
-
 type ParkingLotFormProps = {
   initialData?: ParkingLotPayload | null;
   authToken: string;
-  onSaved: (parkingLot: ParkingLotResponse) => Promise<void> | void;
+  onSaved: (parkingLot: ParkingLot) => Promise<void> | void;
 };
 
 const emptyState: ParkingLotPayload = {
@@ -174,7 +141,7 @@ export default function ParkingLotForm({ initialData, authToken, onSaved }: Park
         throw new Error(await response.text());
       }
 
-      const payload = (await response.json()) as ParkingLotResponse;
+      const payload = (await response.json()) as ParkingLot;
       setSuccess(formData.id ? "Parking został zaktualizowany." : "Parking został dodany.");
       if (!formData.id) {
         setFormData(emptyState);

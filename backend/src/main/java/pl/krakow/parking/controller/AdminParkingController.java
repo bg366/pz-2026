@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import pl.krakow.parking.dto.OccupancyUpdateRequest;
+import pl.krakow.parking.dto.OwnerAssignRequest;
 import pl.krakow.parking.dto.ParkingLotCreateRequest;
 import pl.krakow.parking.dto.ParkingLotResponse;
 import pl.krakow.parking.dto.ParkingSpotRequest;
@@ -77,5 +78,13 @@ public class AdminParkingController {
         @Valid @RequestBody List<ParkingSpotRequest> requests
     ) {
         return parkingLotService.replaceSpotConfiguration(id, requests);
+    }
+
+    @PatchMapping("/{id}/owner")
+    public ParkingLotResponse assignOwner(
+        @PathVariable Long id,
+        @RequestBody OwnerAssignRequest request
+    ) {
+        return parkingLotService.assignOwner(id, request.ownerId());
     }
 }

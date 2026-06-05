@@ -21,6 +21,7 @@ import pl.krakow.parking.dto.ParkingLotUpdateRequest;
 import pl.krakow.parking.dto.ParkingSearchRequest;
 import pl.krakow.parking.dto.ParkingSearchResponse;
 import pl.krakow.parking.dto.PriceResponse;
+import org.springframework.security.access.AccessDeniedException;
 import pl.krakow.parking.exception.ResourceNotFoundException;
 import pl.krakow.parking.mapper.ParkingLotMapper;
 import pl.krakow.parking.mapper.ParkingSpotMapper;
@@ -31,9 +32,11 @@ import pl.krakow.parking.model.ParkingOccupancyHistory;
 import pl.krakow.parking.model.ParkingSpot;
 import pl.krakow.parking.model.Price;
 import pl.krakow.parking.model.SpotCategory;
+import pl.krakow.parking.model.User;
 import pl.krakow.parking.repository.ParkingLotRepository;
 import pl.krakow.parking.repository.ParkingOccupancyHistoryRepository;
 import pl.krakow.parking.repository.PriceRepository;
+import pl.krakow.parking.repository.UserRepository;
 
 @Service
 public class ParkingLotService {
@@ -44,6 +47,7 @@ public class ParkingLotService {
     private final ParkingLotRepository parkingLotRepository;
     private final PriceRepository priceRepository;
     private final ParkingOccupancyHistoryRepository occupancyHistoryRepository;
+    private final UserRepository userRepository;
     private final ParkingLotMapper parkingLotMapper;
     private final ParkingSpotMapper parkingSpotMapper;
     private final SctVerificationService sctVerificationService;
@@ -52,6 +56,7 @@ public class ParkingLotService {
         ParkingLotRepository parkingLotRepository,
         PriceRepository priceRepository,
         ParkingOccupancyHistoryRepository occupancyHistoryRepository,
+        UserRepository userRepository,
         ParkingLotMapper parkingLotMapper,
         ParkingSpotMapper parkingSpotMapper,
         SctVerificationService sctVerificationService
@@ -59,6 +64,7 @@ public class ParkingLotService {
         this.parkingLotRepository = parkingLotRepository;
         this.priceRepository = priceRepository;
         this.occupancyHistoryRepository = occupancyHistoryRepository;
+        this.userRepository = userRepository;
         this.parkingLotMapper = parkingLotMapper;
         this.parkingSpotMapper = parkingSpotMapper;
         this.sctVerificationService = sctVerificationService;
@@ -111,6 +117,63 @@ public class ParkingLotService {
     }
 
     @Transactional(readOnly = true)
+    public List<ParkingLotResponse> findAllByOwner(String ownerEmail) {
+        return parkingLotRepository.findByOwnerEmailIgnoreCaseOrderByIdAsc(ownerEmail).stream()
+            .map(this::toParkingLotResponse)
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ParkingLotResponse findByIdForOwner(Long id, String ownerEmail) {
+        ParkingLot parkingLot = getParkingLotEntity(id);
+        checkOwnership(parkingLot, ownerEmail);
+        return toParkingLotResponse(parkingLot);
+    }
+
+    @Transactional
+    public ParkingLotResponse updateForOwner(Long id, ParkingLotUpdateRequest request, String ownerEmail) {
+        validateSctOccupancy(request.totalSctSpots(), request.occupiedSctSpots());
+        ParkingLot parkingLot = getParkingLotEntity(id);
+        checkOwnership(parkingLot, ownerEmail);
+        parkingLotMapper.updateParkingLot(request, parkingLot);
+        parkingLot.setLocation(createPoint(request.longitude(), request.latitude()));
+        if (parkingLot.getOccupiedSpots() > parkingLot.getTotalSpots()) {
+            parkingLot.setOccupiedSpots(parkingLot.getTotalSpots());
+        }
+        return toParkingLotResponse(parkingLotRepository.save(parkingLot));
+    }
+
+    @Transactional
+    public ParkingLotResponse updateOccupancyForOwner(Long id, OccupancyUpdateRequest request, String ownerEmail) {
+        ParkingLot parkingLot = getParkingLotEntity(id);
+        checkOwnership(parkingLot, ownerEmail);
+        parkingLot.setOccupiedSpots(Math.min(request.occupiedSpots(), parkingLot.getTotalSpots()));
+        ParkingLot savedParkingLot = parkingLotRepository.save(parkingLot);
+        recordOccupancy(savedParkingLot);
+        return toParkingLotResponse(savedParkingLot);
+    }
+
+    @Transactional
+    public ParkingLotResponse replaceSpotsForOwner(Long id, List<ParkingSpotRequest> requests, String ownerEmail) {
+        ParkingLot parkingLot = getParkingLotEntity(id);
+        checkOwnership(parkingLot, ownerEmail);
+        return doReplaceSpots(parkingLot, requests);
+    }
+
+    @Transactional
+    public ParkingLotResponse assignOwner(Long parkingLotId, Long ownerId) {
+        ParkingLot parkingLot = getParkingLotEntity(parkingLotId);
+        if (ownerId == null) {
+            parkingLot.setOwner(null);
+        } else {
+            User owner = userRepository.findById(ownerId)
+                .orElseThrow(() -> new ResourceNotFoundException("User %d was not found.".formatted(ownerId)));
+            parkingLot.setOwner(owner);
+        }
+        return toParkingLotResponse(parkingLotRepository.save(parkingLot));
+    }
+
+    @Transactional(readOnly = true)
     public List<ParkingSearchResponse> searchNearby(ParkingSearchRequest request) {
         return parkingLotRepository.findNearby(request.lat(), request.lng(), request.radiusKm() * 1000.0d)
             .stream()
@@ -138,7 +201,10 @@ public class ParkingLotService {
 
     @Transactional
     public ParkingLotResponse replaceSpotConfiguration(Long id, List<ParkingSpotRequest> requests) {
-        ParkingLot parkingLot = getParkingLotEntity(id);
+        return doReplaceSpots(getParkingLotEntity(id), requests);
+    }
+
+    private ParkingLotResponse doReplaceSpots(ParkingLot parkingLot, List<ParkingSpotRequest> requests) {
         parkingLot.getSpots().clear();
 
         int totalSpots = 0;
@@ -215,6 +281,7 @@ public class ParkingLotService {
     }
 
     private ParkingLotResponse toParkingLotResponse(ParkingLot parkingLot) {
+        User owner = parkingLot.getOwner();
         return new ParkingLotResponse(
             parkingLot.getId(),
             parkingLot.getName(),
@@ -233,8 +300,19 @@ public class ParkingLotService {
             parkingSpotMapper.toResponses(parkingLot.getSpots().stream()
                 .sorted(Comparator.comparing(ParkingSpot::getCategory))
                 .toList()),
-            toPriceResponse(findEffectivePrice(parkingLot))
+            toPriceResponse(findEffectivePrice(parkingLot)),
+            owner != null ? owner.getId() : null,
+            owner != null ? owner.getEmail() : null
         );
+    }
+
+    private void checkOwnership(ParkingLot parkingLot, String ownerEmail) {
+        if (parkingLot.getOwner() == null
+                || !parkingLot.getOwner().getEmail().equalsIgnoreCase(ownerEmail)) {
+            throw new AccessDeniedException(
+                "You are not the owner of parking lot %d.".formatted(parkingLot.getId())
+            );
+        }
     }
 
     private PriceResponse toPriceResponse(Price price) {

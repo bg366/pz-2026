@@ -20,6 +20,8 @@ public record ParkingLotResponse(
     String openingHours,
     String parkingType,
     List<ParkingSpotResponse> spots,
-    PriceResponse price
+    PriceResponse price,
+    Long ownerId,
+    String ownerEmail
 ) {
 }

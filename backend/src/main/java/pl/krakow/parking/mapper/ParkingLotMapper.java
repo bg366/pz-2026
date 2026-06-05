@@ -17,6 +17,7 @@ public interface ParkingLotMapper {
     @Mapping(target = "occupiedSpots", constant = "0")
     @Mapping(target = "occupiedSctSpots", constant = "0")
     @Mapping(target = "spots", ignore = true)
+    @Mapping(target = "owner", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     ParkingLot toEntity(ParkingLotCreateRequest request);
@@ -24,6 +25,7 @@ public interface ParkingLotMapper {
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "location", ignore = true)
     @Mapping(target = "spots", ignore = true)
+    @Mapping(target = "owner", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     void updateParkingLot(ParkingLotUpdateRequest request, @MappingTarget ParkingLot parkingLot);
