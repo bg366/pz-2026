@@ -1,5 +1,6 @@
 .env
 .DS_Store
+TODO.md
 
 # Java / Gradle
 backend/.gradle/
