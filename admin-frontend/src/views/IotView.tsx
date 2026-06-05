@@ -13,6 +13,21 @@ type IotDevice = {
   externalDeviceId: string; status: IotDeviceStatus; lastSeenAt: string | null; createdAt: string;
 };
 
+type PlateCheckResult = {
+  registrationNumber: string;
+  hasPaidSession: boolean;
+  hasActiveReservation: boolean;
+  activeSessions: { sessionId: number; parkingLotName: string; startedAt: string; endedAt: string | null; status: string }[];
+  activeReservations: { reservationId: number; parkingLotName: string; startsAt: string; endsAt: string; status: string }[];
+};
+
+type CameraEntryResult = {
+  canEnter: boolean;
+  message: string;
+  registrationNumber: string;
+  sessionId: number | null;
+};
+
 type Props = { token: string };
 
 async function fetchDevices(token: string): Promise<IotDevice[]> {
@@ -61,6 +76,13 @@ export default function IotView({ token }: Props) {
   const [externalDeviceId, setExternalDeviceId] = useState("");
   const [readingDeviceId, setReadingDeviceId] = useState("");
   const [readingOccupied, setReadingOccupied] = useState("0");
+  const [cameraPlate, setCameraPlate] = useState("");
+  const [cameraResult, setCameraResult] = useState<PlateCheckResult | null>(null);
+  const [cameraChecking, setCameraChecking] = useState(false);
+  const [entryParkingId, setEntryParkingId] = useState("");
+  const [entryPlate, setEntryPlate] = useState("");
+  const [entryResult, setEntryResult] = useState<CameraEntryResult | null>(null);
+  const [entryProcessing, setEntryProcessing] = useState(false);
 
   async function load() {
     try {
@@ -100,6 +122,46 @@ export default function IotView({ token }: Props) {
       await load();
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Błąd wysyłania odczytu.", "error");
+    }
+  }
+
+  async function handleEntryRecord(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const plate = entryPlate.trim().toUpperCase().replace(/\s+/g, "");
+    if (!plate || !entryParkingId) return;
+    setEntryProcessing(true);
+    setEntryResult(null);
+    try {
+      const res = await fetch("/api/inspect/entry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ parkingLotId: Number(entryParkingId), registrationNumber: plate })
+      });
+      const data = await res.json() as CameraEntryResult;
+      setEntryResult(data);
+      if (data.canEnter) showToast(`Wjazd zarejestrowany: ${plate}`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Błąd rejestracji wjazdu.", "error");
+    } finally {
+      setEntryProcessing(false);
+    }
+  }
+
+  async function handleCameraCheck(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const plate = cameraPlate.trim().toUpperCase().replace(/\s+/g, "");
+    if (!plate) return;
+    setCameraChecking(true);
+    setCameraResult(null);
+    try {
+      const res = await fetch(`/api/inspect/${encodeURIComponent(plate)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as PlateCheckResult;
+      setCameraResult(data);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Błąd sprawdzania tablicy.", "error");
+    } finally {
+      setCameraChecking(false);
     }
   }
 
@@ -175,6 +237,143 @@ export default function IotView({ token }: Props) {
             </tbody>
           </table>
         </div>
+      </section>
+
+      {/* Symulacja kamery wjazdowej — BARRIER */}
+      <section style={styles.card}>
+        <div style={styles.cardHeader}>
+          <div>
+            <h2 style={styles.sectionTitle}>Kamera wjazdowa (szlaban)</h2>
+            <p style={styles.helper}>
+              Rejestruje tablicę przy wjeździe. Kamera sprawdza wolne miejsca i otwiera szlaban.
+              Tylko dla parkingów z szlabanem (BARRIER).
+            </p>
+          </div>
+        </div>
+        <form style={{ ...styles.formGrid, marginTop: "12px" }} onSubmit={(e) => void handleEntryRecord(e)}>
+          <label style={styles.field}>
+            <span style={styles.label}>Parking (BARRIER)</span>
+            <select style={styles.input} value={entryParkingId} onChange={(e) => setEntryParkingId(e.target.value)} required>
+              <option value="">Wybierz parking</option>
+              {parkingLots.filter((p) => (p as { accessType?: string }).accessType === "BARRIER" || !(p as { accessType?: string }).accessType).map((p) => (
+                <option key={p.id} value={String(p.id)}>#{p.id} — {p.name}</option>
+              ))}
+            </select>
+          </label>
+          <label style={styles.field}>
+            <span style={styles.label}>Tablica rejestracyjna</span>
+            <input
+              style={{ ...styles.input, textTransform: "uppercase", fontWeight: 700 }}
+              value={entryPlate}
+              onChange={(e) => setEntryPlate(e.target.value.toUpperCase())}
+              placeholder="np. KR1234AB"
+              maxLength={20}
+              required
+            />
+          </label>
+          <button type="submit" style={styles.button} disabled={entryProcessing}>
+            {entryProcessing ? "Przetwarzanie..." : "Zarejestruj wjazd"}
+          </button>
+        </form>
+
+        {entryResult ? (
+          <div style={{
+            marginTop: "16px", padding: "16px", borderRadius: "8px",
+            background: entryResult.canEnter ? "#f0fdf4" : "#fff1f2",
+            border: `2px solid ${entryResult.canEnter ? "#22c55e" : "#ef4444"}`
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span style={{ fontSize: "2rem", color: entryResult.canEnter ? "#16a34a" : "#dc2626" }}>
+                {entryResult.canEnter ? "🚗✓" : "🚫"}
+              </span>
+              <div>
+                <div style={{ fontWeight: 800, color: entryResult.canEnter ? "#15803d" : "#dc2626" }}>
+                  {entryResult.canEnter ? "SZLABAN OTWARTY" : "SZLABAN ZAMKNIĘTY"}
+                </div>
+                <div style={{ fontSize: "0.85rem", color: "#374151" }}>{entryResult.message}</div>
+                {entryResult.registrationNumber ? (
+                  <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#1e293b", marginTop: "4px" }}>
+                    {entryResult.registrationNumber}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </section>
+
+      {/* Symulacja kamery rozpoznawania tablic */}
+      <section style={styles.card}>
+        <div style={styles.cardHeader}>
+          <div>
+            <h2 style={styles.sectionTitle}>Symulacja kamery wjazdowej/wyjazdowej</h2>
+            <p style={styles.helper}>
+              Wprowadź tablicę rejestracyjną — kamera sprawdza, czy pojazd ma opłacony pobyt lub rezerwację.
+            </p>
+          </div>
+        </div>
+        <form style={{ ...styles.formGrid, marginTop: "12px" }} onSubmit={(e) => void handleCameraCheck(e)}>
+          <label style={styles.field}>
+            <span style={styles.label}>Tablica rejestracyjna</span>
+            <input
+              style={{ ...styles.input, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700 }}
+              value={cameraPlate}
+              onChange={(e) => setCameraPlate(e.target.value.toUpperCase())}
+              placeholder="np. KR1234AB"
+              maxLength={20}
+              required
+            />
+          </label>
+          <button type="submit" style={styles.button} disabled={cameraChecking}>
+            {cameraChecking ? "Sprawdzanie..." : "Sprawdź tablicę"}
+          </button>
+        </form>
+
+        {cameraResult ? (
+          <div style={{
+            marginTop: "16px",
+            padding: "16px",
+            borderRadius: "8px",
+            background: (cameraResult.hasPaidSession || cameraResult.hasActiveReservation) ? "#f0fdf4" : "#fff1f2",
+            border: `2px solid ${(cameraResult.hasPaidSession || cameraResult.hasActiveReservation) ? "#22c55e" : "#ef4444"}`,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
+              <span style={{
+                fontSize: "2rem",
+                color: (cameraResult.hasPaidSession || cameraResult.hasActiveReservation) ? "#16a34a" : "#dc2626"
+              }}>
+                {(cameraResult.hasPaidSession || cameraResult.hasActiveReservation) ? "✓" : "✗"}
+              </span>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: "1.1rem", color: (cameraResult.hasPaidSession || cameraResult.hasActiveReservation) ? "#15803d" : "#dc2626" }}>
+                  {(cameraResult.hasPaidSession || cameraResult.hasActiveReservation) ? "OPŁACONY / MA REZERWACJĘ" : "BRAK OPŁATY"}
+                </div>
+                <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#374151" }}>
+                  {cameraResult.registrationNumber}
+                </div>
+              </div>
+            </div>
+            {cameraResult.activeSessions.map((s) => (
+              <div key={s.sessionId} style={{ background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", padding: "10px", marginBottom: "8px", fontSize: "0.85rem" }}>
+                <strong>Sesja:</strong> {s.parkingLotName} — {s.status}
+                <br />
+                <span style={{ color: "#6b7280" }}>Wjazd: {new Date(s.startedAt).toLocaleString("pl-PL")}</span>
+              </div>
+            ))}
+            {cameraResult.activeReservations.map((r) => (
+              <div key={r.reservationId} style={{ background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", padding: "10px", marginBottom: "8px", fontSize: "0.85rem" }}>
+                <strong>Rezerwacja:</strong> {r.parkingLotName} — {r.status}
+                <br />
+                <span style={{ color: "#6b7280" }}>
+                  {new Date(r.startsAt).toLocaleString("pl-PL")} — {new Date(r.endsAt).toLocaleString("pl-PL")}
+                </span>
+              </div>
+            ))}
+            {!cameraResult.hasPaidSession && !cameraResult.hasActiveReservation && cameraResult.activeSessions.length === 0 && cameraResult.activeReservations.length === 0 ? (
+              <p style={{ color: "#6b7280", fontSize: "0.85rem" }}>Brak opłaconej sesji ani aktywnej rezerwacji dla tablicy {cameraResult.registrationNumber}.</p>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       {/* Rejestracja + Symulacja */}

@@ -19,6 +19,7 @@ export type ParkingLotPayload = {
   occupiedSctSpots: number;
   openingHours: string;
   parkingType: string;
+  accessType: "BARRIER" | "OPEN";
 };
 
 type ParkingLotFormProps = {
@@ -31,7 +32,7 @@ const emptyState: ParkingLotPayload = {
   name: "", address: "", description: "", status: "ACTIVE", zone: "ZONE_A",
   latitude: "50.0615", longitude: "19.9370",
   totalSpots: "100", occupiedSpots: 0, totalSctSpots: "10", occupiedSctSpots: 0,
-  openingHours: "24/7", parkingType: "PUBLIC"
+  openingHours: "24/7", parkingType: "PUBLIC", accessType: "BARRIER"
 };
 
 const inp: React.CSSProperties = {
@@ -76,7 +77,8 @@ export default function ParkingLotForm({ initialData, authToken, onSaved }: Park
           occupiedSpots: formData.id ? formData.occupiedSpots : undefined,
           totalSctSpots: Number(formData.totalSctSpots),
           occupiedSctSpots: formData.id ? formData.occupiedSctSpots : undefined,
-          openingHours: formData.openingHours, parkingType: formData.parkingType
+          openingHours: formData.openingHours, parkingType: formData.parkingType,
+          accessType: formData.accessType
         })
       });
       if (!response.ok) throw new Error(await response.text());
@@ -138,6 +140,16 @@ export default function ParkingLotForm({ initialData, authToken, onSaved }: Park
             <option value="UNDERGROUND">Podziemny</option>
           </select>
         </label>
+        <label style={fld}>
+          <span style={lbl}>Dostęp</span>
+          <select style={inp} value={formData.accessType} onChange={(e) => set("accessType", e.target.value as ParkingLotPayload["accessType"])}>
+            <option value="BARRIER">Szlaban (rezerwacja wymagana)</option>
+            <option value="OPEN">Otwarty (opłata po przyjeździe)</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="admin-form-row" style={row}>
         <label style={fld}>
           <span style={lbl}>Godziny działania</span>
           <input style={inp} value={formData.openingHours} onChange={(e) => set("openingHours", e.target.value)} required />

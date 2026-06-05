@@ -37,7 +37,8 @@ function mapParkingToPayload(parking: ParkingLot): ParkingLotPayload {
     totalSctSpots: String(parking.totalSctSpots),
     occupiedSctSpots: parking.occupiedSctSpots,
     openingHours: parking.openingHours,
-    parkingType: parking.parkingType
+    parkingType: parking.parkingType,
+    accessType: parking.accessType ?? "BARRIER"
   };
 }
 
