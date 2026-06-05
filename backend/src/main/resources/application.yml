@@ -34,3 +34,11 @@ security:
   jwt:
     secret: ${JWT_SECRET:krakow-parking-local-jwt-secret-change-in-production}
     expiration-seconds: ${JWT_EXPIRATION_SECONDS:86400}
+
+# Paynow sandbox integration (optional — leave empty to use local payment simulation)
+# Register at https://panel.sandbox.paynow.pl to get credentials
+paynow:
+  api-key: ${PAYNOW_API_KEY:}
+  signature-key: ${PAYNOW_SIGNATURE_KEY:}
+  api-url: ${PAYNOW_API_URL:https://api.sandbox.paynow.pl}
+  continue-url: ${PAYNOW_CONTINUE_URL:http://localhost:3000/rezerwacje}

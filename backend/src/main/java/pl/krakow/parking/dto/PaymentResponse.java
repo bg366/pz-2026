@@ -9,6 +9,7 @@ public record PaymentResponse(
     BigDecimal amount,
     String currency,
     PaymentStatus status,
-    String token
+    String token,
+    String redirectUrl
 ) {
 }

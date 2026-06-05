@@ -18,6 +18,11 @@ public class PaymentController {
         this.paymentService = paymentService;
     }
 
+    @PostMapping("/{token}/initiate")
+    public PaymentResponse initiate(@PathVariable String token, Principal principal) {
+        return paymentService.initiate(token, principal.getName());
+    }
+
     @PostMapping("/{token}/confirm")
     public PaymentResponse confirm(@PathVariable String token, Principal principal) {
         return paymentService.confirm(token, principal.getName());

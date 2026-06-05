@@ -15,10 +15,29 @@ public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final NotificationService notificationService;
+    private final PaynowClient paynowClient;
 
-    public PaymentService(PaymentRepository paymentRepository, NotificationService notificationService) {
+    public PaymentService(
+        PaymentRepository paymentRepository,
+        NotificationService notificationService,
+        PaynowClient paynowClient
+    ) {
         this.paymentRepository = paymentRepository;
         this.notificationService = notificationService;
+        this.paynowClient = paynowClient;
+    }
+
+    @Transactional
+    public PaymentResponse initiate(String token, String email) {
+        Payment payment = findAndValidate(token, email);
+        if (payment.getStatus() != PaymentStatus.PENDING) {
+            throw new IllegalArgumentException("Płatność nie jest już aktywna.");
+        }
+        String description = "Rezerwacja #" + payment.getReservation().getId()
+            + " — " + payment.getReservation().getParkingLot().getName();
+        var result = paynowClient.initiatePayment(token, payment.getAmount(), description, email);
+        String redirectUrl = result != null ? result.redirectUrl() : null;
+        return toResponse(payment, redirectUrl);
     }
 
     @Transactional
@@ -55,13 +74,18 @@ public class PaymentService {
     }
 
     private PaymentResponse toResponse(Payment p) {
+        return toResponse(p, null);
+    }
+
+    private PaymentResponse toResponse(Payment p, String redirectUrl) {
         return new PaymentResponse(
             p.getId(),
             p.getReservation().getId(),
             p.getAmount(),
             p.getCurrency(),
             p.getStatus(),
-            p.getToken()
+            p.getToken(),
+            redirectUrl
         );
     }
 }
