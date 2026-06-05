@@ -1,24 +1,130 @@
-### Lista parkingów
-GET http://localhost:80/api/admin/parking-lots
+### ============================================================
+### AUTH
+### ============================================================
 
-### Dodaj parking
-POST http://localhost:80/api/admin/parking-lots
+### Rejestracja nowego konta
+POST http://localhost:80/api/auth/register
 Content-Type: application/json
 
 {
-  "name": "Parking Testowy",
-  "address": "ul. Testowa 1, Kraków",
-  "zone": "ZONE_A",
-  "latitude": 50.0600,
-  "longitude": 19.9400,
-  "totalSpots": 100,
-  "parkingType": "PUBLIC"
+  "firstName": "Anna",
+  "lastName": "Nowak",
+  "email": "anna@example.com",
+  "password": "Haslo1234!"
 }
 
-### Wyszukaj parkingi w promieniu 3 km od Rynku
-GET http://localhost:80/api/parking-lots/search?lat=50.0615&lng=19.9370&radiusKm=3&fuelType=DIESEL&emissionStandard=EURO_5
+### Logowanie (zwraca token Base64)
+POST http://localhost:80/api/auth/login
+Content-Type: application/json
 
-### Sprawdź czy pojazd może wjechać
+{
+  "email": "user@krakow-parking.local",
+  "password": "User12345!"
+}
+
+### Profil zalogowanego użytkownika
+GET http://localhost:80/api/auth/me
+Authorization: Basic dXNlckBrcmFrb3ctcGFya2luZy5sb2NhbDpVc2VyMTIzNDUh
+
+### Wylogowanie (stateless — klient usuwa token)
+POST http://localhost:80/api/auth/logout
+Authorization: Basic dXNlckBrcmFrb3ctcGFya2luZy5sb2NhbDpVc2VyMTIzNDUh
+
+
+### ============================================================
+### PROFIL UŻYTKOWNIKA
+### ============================================================
+
+### Pobierz profil
+GET http://localhost:80/api/me
+Authorization: Basic dXNlckBrcmFrb3ctcGFya2luZy5sb2NhbDpVc2VyMTIzNDUh
+
+### Edytuj profil
+PUT http://localhost:80/api/me
+Authorization: Basic dXNlckBrcmFrb3ctcGFya2luZy5sb2NhbDpVc2VyMTIzNDUh
+Content-Type: application/json
+
+{
+  "firstName": "Anna",
+  "lastName": "Kowalska"
+}
+
+
+### ============================================================
+### POJAZDY UŻYTKOWNIKA
+### ============================================================
+
+### Lista pojazdów
+GET http://localhost:80/api/me/vehicles
+Authorization: Basic dXNlckBrcmFrb3ctcGFya2luZy5sb2NhbDpVc2VyMTIzNDUh
+
+### Dodaj pojazd
+POST http://localhost:80/api/me/vehicles
+Authorization: Basic dXNlckBrcmFrb3ctcGFya2luZy5sb2NhbDpVc2VyMTIzNDUh
+Content-Type: application/json
+
+{
+  "brand": "Toyota",
+  "model": "Corolla",
+  "registrationNumber": "KR12345",
+  "fuelType": "HYBRID",
+  "emissionStandard": "EURO_6",
+  "productionYear": 2022,
+  "vehicleType": "PASSENGER",
+  "active": true
+}
+
+### Edytuj pojazd
+PUT http://localhost:80/api/me/vehicles/1
+Authorization: Basic dXNlckBrcmFrb3ctcGFya2luZy5sb2NhbDpVc2VyMTIzNDUh
+Content-Type: application/json
+
+{
+  "brand": "Toyota",
+  "model": "Corolla",
+  "registrationNumber": "KR12345",
+  "fuelType": "HYBRID",
+  "emissionStandard": "EURO_6",
+  "productionYear": 2022,
+  "vehicleType": "PASSENGER",
+  "active": true
+}
+
+### Ustaw aktywny pojazd
+PATCH http://localhost:80/api/me/vehicles/1/active
+Authorization: Basic dXNlckBrcmFrb3ctcGFya2luZy5sb2NhbDpVc2VyMTIzNDUh
+
+### Usuń pojazd
+DELETE http://localhost:80/api/me/vehicles/1
+Authorization: Basic dXNlckBrcmFrb3ctcGFya2luZy5sb2NhbDpVc2VyMTIzNDUh
+
+
+### ============================================================
+### WYSZUKIWANIE PARKINGÓW (publiczne)
+### ============================================================
+
+### Wyszukaj w promieniu 3 km od Rynku
+GET http://localhost:80/api/parking-lots/search?lat=50.0615&lng=19.9370&radiusKm=3
+Accept: application/json
+
+### Wyszukaj z filtrowaniem po pojeździe EURO 5 DIESEL
+GET http://localhost:80/api/parking-lots/search?lat=50.0615&lng=19.9370&radiusKm=5&fuelType=DIESEL&emissionStandard=EURO_5
+Accept: application/json
+
+### Wyszukaj z filtrem strefy i przewidywanym kosztem (90 min)
+GET http://localhost:80/api/parking-lots/search?lat=50.0615&lng=19.9370&radiusKm=5&zone=ZONE_A&durationMinutes=90&sort=PRICE
+Accept: application/json
+
+### Wyszukaj tylko dostępne, otwarte teraz, sortuj po liczbie wolnych miejsc
+GET http://localhost:80/api/parking-lots/search?lat=50.0615&lng=19.9370&radiusKm=10&onlyAvailable=true&openNow=true&sort=AVAILABLE_SPOTS
+Accept: application/json
+
+
+### ============================================================
+### WERYFIKACJA POJAZDU
+### ============================================================
+
+### Sprawdź czy pojazd może wjechać do ZONE_A
 POST http://localhost:80/api/vehicles/check
 Content-Type: application/json
 
@@ -28,5 +134,245 @@ Content-Type: application/json
   "zone": "ZONE_A"
 }
 
-### Oblicz opłatę za 2h parkowania
+### Sprawdź pojazd elektryczny
+POST http://localhost:80/api/vehicles/check
+Content-Type: application/json
+
+{
+  "fuelType": "ELECTRIC",
+  "emissionStandard": "ELECTRIC",
+  "zone": "ZONE_A"
+}
+
+
+### ============================================================
+### KALKULACJA OPŁATY
+### ============================================================
+
+### Oblicz opłatę za 2 godziny
 GET http://localhost:80/api/parking-fee/calculate?parkingLotId=1&durationMinutes=120
+Accept: application/json
+
+### Oblicz opłatę za 30 minut
+GET http://localhost:80/api/parking-fee/calculate?parkingLotId=1&durationMinutes=30
+Accept: application/json
+
+### Oblicz opłatę za cały dzień (25 godzin — powinna wybrać cenę dobową)
+GET http://localhost:80/api/parking-fee/calculate?parkingLotId=1&durationMinutes=1500
+Accept: application/json
+
+
+### ============================================================
+### ADMIN — PARKINGI
+### ============================================================
+
+### Lista parkingów (paginacja)
+GET http://localhost:80/api/admin/parking-lots?page=0&size=20
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+
+### Szczegóły parkingu
+GET http://localhost:80/api/admin/parking-lots/1
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+
+### Dodaj parking
+POST http://localhost:80/api/admin/parking-lots
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+Content-Type: application/json
+
+{
+  "name": "Parking Testowy",
+  "address": "ul. Testowa 1, Kraków",
+  "description": "Nowy parking testowy",
+  "status": "ACTIVE",
+  "zone": "ZONE_A",
+  "latitude": 50.0600,
+  "longitude": 19.9400,
+  "totalSpots": 100,
+  "totalSctSpots": 10,
+  "openingHours": "24/7",
+  "parkingType": "PUBLIC"
+}
+
+### Edytuj parking
+PUT http://localhost:80/api/admin/parking-lots/1
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+Content-Type: application/json
+
+{
+  "name": "Parking Galeria Krakowska",
+  "address": "ul. Pawia 5, Kraków",
+  "description": "Parking przy galerii",
+  "status": "ACTIVE",
+  "zone": "ZONE_A",
+  "latitude": 50.0685,
+  "longitude": 19.9452,
+  "totalSpots": 500,
+  "occupiedSpots": 120,
+  "totalSctSpots": 50,
+  "occupiedSctSpots": 10,
+  "openingHours": "06:00-24:00",
+  "parkingType": "UNDERGROUND"
+}
+
+### Aktualizuj obłożenie
+PATCH http://localhost:80/api/admin/parking-lots/1/occupancy
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+Content-Type: application/json
+
+{
+  "occupiedSpots": 150
+}
+
+### Konfiguracja kategorii miejsc
+PUT http://localhost:80/api/admin/parking-lots/1/spots
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+Content-Type: application/json
+
+[
+  { "category": "REGULAR", "total": 400, "occupied": 100 },
+  { "category": "EV", "total": 20, "occupied": 5 },
+  { "category": "DISABLED", "total": 30, "occupied": 10 },
+  { "category": "SCT_READY", "total": 50, "occupied": 15 }
+]
+
+### Przypisz właściciela parkingu
+PATCH http://localhost:80/api/admin/parking-lots/1/owner
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+Content-Type: application/json
+
+{
+  "ownerId": 3
+}
+
+### Usuń parking
+DELETE http://localhost:80/api/admin/parking-lots/99
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+
+
+### ============================================================
+### ADMIN — CENNIKI
+### ============================================================
+
+### Cennik strefy ZONE_A
+PUT http://localhost:80/api/admin/prices/zones/ZONE_A
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+Content-Type: application/json
+
+{
+  "firstHourPrice": 4.00,
+  "secondHourPrice": 4.00,
+  "thirdHourPrice": 5.00,
+  "nextHourPrice": 3.00,
+  "dailyPrice": 40.00
+}
+
+### Indywidualny cennik parkingu
+PUT http://localhost:80/api/admin/parking-lots/1/price
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+Content-Type: application/json
+
+{
+  "firstHourPrice": 6.00,
+  "secondHourPrice": 6.00,
+  "thirdHourPrice": 6.00,
+  "nextHourPrice": 4.00,
+  "dailyPrice": 55.00
+}
+
+
+### ============================================================
+### ADMIN — REGUŁY SCT
+### ============================================================
+
+### Lista reguł SCT
+GET http://localhost:80/api/admin/sct-rules
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+
+### Dodaj regułę SCT
+POST http://localhost:80/api/admin/sct-rules
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+Content-Type: application/json
+
+{
+  "zone": "ZONE_A",
+  "fuelType": "DIESEL",
+  "minEmissionStandard": "EURO_5",
+  "allowed": true,
+  "validFrom": "2024-07-01",
+  "validTo": null,
+  "description": "Diesle EURO 5+ dozwolone w ZONE_A"
+}
+
+### Usuń regułę SCT
+DELETE http://localhost:80/api/admin/sct-rules/1
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+
+
+### ============================================================
+### ADMIN — UŻYTKOWNICY
+### ============================================================
+
+### Lista użytkowników
+GET http://localhost:80/api/admin/users
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+
+### Szczegóły użytkownika z pojazdami
+GET http://localhost:80/api/admin/users/2
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+
+### Zmień rolę na PARKING_OWNER
+PATCH http://localhost:80/api/admin/users/2/role
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+Content-Type: application/json
+
+{
+  "role": "PARKING_OWNER"
+}
+
+### Zablokuj konto
+PATCH http://localhost:80/api/admin/users/2/status
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+Content-Type: application/json
+
+{
+  "status": "BLOCKED"
+}
+
+### Reset hasła
+POST http://localhost:80/api/admin/users/2/password-reset
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+
+
+### ============================================================
+### ADMIN — RAPORTY
+### ============================================================
+
+### Aktualne obłożenie
+GET http://localhost:80/api/admin/reports/occupancy/current
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+
+### Raport dzienny
+GET http://localhost:80/api/admin/reports/occupancy/daily?date=2025-06-01
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+
+### Raport miesięczny
+GET http://localhost:80/api/admin/reports/occupancy/monthly?year=2025&month=6
+Authorization: Basic YWRtaW5AY3Jha293LXBhcmtpbmcubG9jYWw6QWRtaW4xMjMh
+
+
+### ============================================================
+### OWNER — PARKINGI WŁAŚCICIELA
+### ============================================================
+
+### Lista moich parkingów (rola PARKING_OWNER)
+GET http://localhost:80/api/owner/parking-lots
+Authorization: Basic b3duZXJAZXhhbXBsZS5jb206UGFzc3dvcmQxMjMh
+
+### Aktualizuj obłożenie mojego parkingu
+PATCH http://localhost:80/api/owner/parking-lots/1/occupancy
+Authorization: Basic b3duZXJAZXhhbXBsZS5jb206UGFzc3dvcmQxMjMh
+Content-Type: application/json
+
+{
+  "occupiedSpots": 200
+}
