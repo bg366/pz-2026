@@ -69,11 +69,16 @@ type ParkingLot = {
   id: number;
   name: string;
   address: string;
+  description: string | null;
+  status: "ACTIVE" | "INACTIVE" | "TEMPORARILY_CLOSED";
   zone: "ZONE_A" | "ZONE_B" | "ZONE_C";
   latitude: number;
   longitude: number;
   totalSpots: number;
   occupiedSpots: number;
+  totalSctSpots: number;
+  occupiedSctSpots: number;
+  openingHours: string;
   parkingType: string;
   spots: ParkingSpot[];
   price: Price | null;
@@ -338,11 +343,16 @@ function mapParkingToFormValues(parkingLot: ParkingLot): ParkingLotPayload {
     id: parkingLot.id,
     name: parkingLot.name,
     address: parkingLot.address,
+    description: parkingLot.description ?? "",
+    status: parkingLot.status,
     zone: parkingLot.zone,
     latitude: String(parkingLot.latitude),
     longitude: String(parkingLot.longitude),
     totalSpots: String(parkingLot.totalSpots),
     occupiedSpots: parkingLot.occupiedSpots,
+    totalSctSpots: String(parkingLot.totalSctSpots),
+    occupiedSctSpots: parkingLot.occupiedSctSpots,
+    openingHours: parkingLot.openingHours,
     parkingType: parkingLot.parkingType
   };
 }
@@ -896,12 +906,16 @@ export default function App() {
                         <td style={styles.td}>
                           <strong>{parkingLot.name}</strong>
                           <div style={styles.helper}>{parkingLot.address}</div>
+                          <div style={styles.helper}>{parkingLot.status} - {parkingLot.openingHours}</div>
                         </td>
                         <td style={styles.td}>
                           <span style={styles.badge}>{parkingLot.zone}</span>
                         </td>
                         <td style={styles.td}>
                           {parkingLot.occupiedSpots} / {parkingLot.totalSpots}
+                          <div style={styles.helper}>
+                            SCT: {parkingLot.occupiedSctSpots} / {parkingLot.totalSctSpots}
+                          </div>
                         </td>
                         <td style={styles.td}>
                           <div style={styles.actions}>
@@ -1288,6 +1302,20 @@ export default function App() {
                     <div style={styles.summaryCard}>
                       <strong>Dostępne miejsca</strong>
                       <div style={styles.helper}>{selectedParkingSummary.available}</div>
+                    </div>
+                    <div style={styles.summaryCard}>
+                      <strong>Status</strong>
+                      <div style={styles.helper}>{selectedParking.status}</div>
+                    </div>
+                    <div style={styles.summaryCard}>
+                      <strong>Godziny</strong>
+                      <div style={styles.helper}>{selectedParking.openingHours}</div>
+                    </div>
+                    <div style={styles.summaryCard}>
+                      <strong>Miejsca SCT</strong>
+                      <div style={styles.helper}>
+                        {selectedParking.occupiedSctSpots} / {selectedParking.totalSctSpots}
+                      </div>
                     </div>
                     <div style={styles.summaryCard}>
                       <strong>Cennik</strong>

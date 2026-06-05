@@ -15,6 +15,7 @@ public interface ParkingLotMapper {
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "location", ignore = true)
     @Mapping(target = "occupiedSpots", constant = "0")
+    @Mapping(target = "occupiedSctSpots", constant = "0")
     @Mapping(target = "spots", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)

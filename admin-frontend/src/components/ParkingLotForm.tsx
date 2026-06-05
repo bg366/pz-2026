@@ -5,11 +5,16 @@ export type ParkingLotPayload = {
   id?: number;
   name: string;
   address: string;
+  description: string;
+  status: "ACTIVE" | "INACTIVE" | "TEMPORARILY_CLOSED";
   zone: "ZONE_A" | "ZONE_B" | "ZONE_C";
   latitude: string;
   longitude: string;
   totalSpots: string;
   occupiedSpots: number;
+  totalSctSpots: string;
+  occupiedSctSpots: number;
+  openingHours: string;
   parkingType: string;
 };
 
@@ -17,11 +22,16 @@ type ParkingLotResponse = {
   id: number;
   name: string;
   address: string;
+  description: string | null;
+  status: "ACTIVE" | "INACTIVE" | "TEMPORARILY_CLOSED";
   zone: "ZONE_A" | "ZONE_B" | "ZONE_C";
   latitude: number;
   longitude: number;
   totalSpots: number;
   occupiedSpots: number;
+  totalSctSpots: number;
+  occupiedSctSpots: number;
+  openingHours: string;
   parkingType: string;
   spots: {
     id: number;
@@ -51,11 +61,16 @@ type ParkingLotFormProps = {
 const emptyState: ParkingLotPayload = {
   name: "",
   address: "",
+  description: "",
+  status: "ACTIVE",
   zone: "ZONE_A",
   latitude: "50.0615",
   longitude: "19.9370",
   totalSpots: "100",
   occupiedSpots: 0,
+  totalSctSpots: "10",
+  occupiedSctSpots: 0,
+  openingHours: "24/7",
   parkingType: "PUBLIC"
 };
 
@@ -141,11 +156,16 @@ export default function ParkingLotForm({ initialData, authToken, onSaved }: Park
         body: JSON.stringify({
           name: formData.name,
           address: formData.address,
+          description: formData.description || null,
+          status: formData.status,
           zone: formData.zone,
           latitude: Number(formData.latitude),
           longitude: Number(formData.longitude),
           totalSpots: Number(formData.totalSpots),
           occupiedSpots: formData.id ? formData.occupiedSpots : undefined,
+          totalSctSpots: Number(formData.totalSctSpots),
+          occupiedSctSpots: formData.id ? formData.occupiedSctSpots : undefined,
+          openingHours: formData.openingHours,
           parkingType: formData.parkingType
         })
       });
@@ -193,6 +213,16 @@ export default function ParkingLotForm({ initialData, authToken, onSaved }: Park
         />
       </label>
 
+      <label style={styles.field}>
+        <span style={styles.label}>Opis</span>
+        <input
+          style={styles.input}
+          value={formData.description}
+          onChange={(event) => updateField("description", event.target.value)}
+          placeholder="Krotki opis parkingu"
+        />
+      </label>
+
       <div style={styles.row}>
         <label style={styles.field}>
           <span style={styles.label}>Strefa</span>
@@ -208,6 +238,21 @@ export default function ParkingLotForm({ initialData, authToken, onSaved }: Park
         </label>
 
         <label style={styles.field}>
+          <span style={styles.label}>Status</span>
+          <select
+            style={styles.input}
+            value={formData.status}
+            onChange={(event) => updateField("status", event.target.value as ParkingLotPayload["status"])}
+          >
+            <option value="ACTIVE">ACTIVE</option>
+            <option value="INACTIVE">INACTIVE</option>
+            <option value="TEMPORARILY_CLOSED">TEMPORARILY_CLOSED</option>
+          </select>
+        </label>
+      </div>
+
+      <div style={styles.row}>
+        <label style={styles.field}>
           <span style={styles.label}>Typ parkingu</span>
           <select
             style={styles.input}
@@ -219,6 +264,16 @@ export default function ParkingLotForm({ initialData, authToken, onSaved }: Park
             <option value="PARK_AND_RIDE">PARK_AND_RIDE</option>
             <option value="UNDERGROUND">UNDERGROUND</option>
           </select>
+        </label>
+
+        <label style={styles.field}>
+          <span style={styles.label}>Godziny dzialania</span>
+          <input
+            style={styles.input}
+            value={formData.openingHours}
+            onChange={(event) => updateField("openingHours", event.target.value)}
+            required
+          />
         </label>
       </div>
 
@@ -259,6 +314,32 @@ export default function ParkingLotForm({ initialData, authToken, onSaved }: Park
           required
         />
       </label>
+
+      <div style={styles.row}>
+        <label style={styles.field}>
+          <span style={styles.label}>Miejsca SCT</span>
+          <input
+            style={styles.input}
+            type="number"
+            min="0"
+            value={formData.totalSctSpots}
+            onChange={(event) => updateField("totalSctSpots", event.target.value)}
+            required
+          />
+        </label>
+
+        <label style={styles.field}>
+          <span style={styles.label}>Zajete SCT</span>
+          <input
+            style={styles.input}
+            type="number"
+            min="0"
+            value={formData.occupiedSctSpots}
+            onChange={(event) => updateField("occupiedSctSpots", Number(event.target.value))}
+            disabled={!formData.id}
+          />
+        </label>
+      </div>
 
       {success ? <div style={{ ...styles.feedback, ...styles.success }}>{success}</div> : null}
       {error ? <div style={{ ...styles.feedback, ...styles.error }}>{error}</div> : null}

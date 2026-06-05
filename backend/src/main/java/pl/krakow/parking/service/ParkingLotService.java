@@ -25,8 +25,10 @@ import pl.krakow.parking.exception.ResourceNotFoundException;
 import pl.krakow.parking.mapper.ParkingLotMapper;
 import pl.krakow.parking.mapper.ParkingSpotMapper;
 import pl.krakow.parking.model.ParkingLot;
+import pl.krakow.parking.model.ParkingLotStatus;
 import pl.krakow.parking.model.ParkingSpot;
 import pl.krakow.parking.model.Price;
+import pl.krakow.parking.model.SpotCategory;
 import pl.krakow.parking.repository.ParkingLotRepository;
 import pl.krakow.parking.repository.PriceRepository;
 
@@ -68,6 +70,7 @@ public class ParkingLotService {
 
     @Transactional
     public ParkingLotResponse create(ParkingLotCreateRequest request) {
+        validateSctOccupancy(request.totalSctSpots(), 0);
         ParkingLot parkingLot = parkingLotMapper.toEntity(request);
         parkingLot.setLocation(createPoint(request.longitude(), request.latitude()));
         parkingLot.setOccupiedSpots(0);
@@ -76,6 +79,7 @@ public class ParkingLotService {
 
     @Transactional
     public ParkingLotResponse update(Long id, ParkingLotUpdateRequest request) {
+        validateSctOccupancy(request.totalSctSpots(), request.occupiedSctSpots());
         ParkingLot parkingLot = getParkingLotEntity(id);
         parkingLotMapper.updateParkingLot(request, parkingLot);
         parkingLot.setLocation(createPoint(request.longitude(), request.latitude()));
@@ -102,6 +106,7 @@ public class ParkingLotService {
     public List<ParkingSearchResponse> searchNearby(ParkingSearchRequest request) {
         return parkingLotRepository.findNearby(request.lat(), request.lng(), request.radiusKm() * 1000.0d)
             .stream()
+            .filter(parkingLot -> parkingLot.getStatus() == ParkingLotStatus.ACTIVE)
             .map(parkingLot -> toSearchResponse(parkingLot, request))
             .filter(response -> matchesPrice(response, request.maxPricePerHour()))
             .toList();
@@ -124,6 +129,8 @@ public class ParkingLotService {
 
         int totalSpots = 0;
         int occupiedSpots = 0;
+        int totalSctSpots = 0;
+        int occupiedSctSpots = 0;
 
         for (ParkingSpotRequest request : requests) {
             if (request.occupied() > request.total()) {
@@ -140,10 +147,16 @@ public class ParkingLotService {
             parkingLot.addSpot(spot);
             totalSpots += request.total();
             occupiedSpots += request.occupied();
+            if (request.category() == SpotCategory.SCT_READY) {
+                totalSctSpots += request.total();
+                occupiedSctSpots += request.occupied();
+            }
         }
 
         parkingLot.setTotalSpots(totalSpots);
         parkingLot.setOccupiedSpots(occupiedSpots);
+        parkingLot.setTotalSctSpots(totalSctSpots);
+        parkingLot.setOccupiedSctSpots(occupiedSctSpots);
         return toParkingLotResponse(parkingLotRepository.save(parkingLot));
     }
 
@@ -159,12 +172,16 @@ public class ParkingLotService {
             parkingLot.getId(),
             parkingLot.getName(),
             parkingLot.getAddress(),
+            parkingLot.getDescription(),
+            parkingLot.getStatus(),
             parkingLot.getZone(),
             parkingLot.getLocation().getY(),
             parkingLot.getLocation().getX(),
             calculateDistanceKm(request.lat(), request.lng(), parkingLot.getLocation()),
             sctAllowed,
             parkingLot.getTotalSpots() - parkingLot.getOccupiedSpots(),
+            parkingLot.getTotalSctSpots() - parkingLot.getOccupiedSctSpots(),
+            parkingLot.getOpeningHours(),
             pricePerHour,
             currency,
             parkingLot.getParkingType()
@@ -176,11 +193,16 @@ public class ParkingLotService {
             parkingLot.getId(),
             parkingLot.getName(),
             parkingLot.getAddress(),
+            parkingLot.getDescription(),
+            parkingLot.getStatus(),
             parkingLot.getZone(),
             parkingLot.getLocation() != null ? parkingLot.getLocation().getY() : null,
             parkingLot.getLocation() != null ? parkingLot.getLocation().getX() : null,
             parkingLot.getTotalSpots(),
             parkingLot.getOccupiedSpots(),
+            parkingLot.getTotalSctSpots(),
+            parkingLot.getOccupiedSctSpots(),
+            parkingLot.getOpeningHours(),
             parkingLot.getParkingType(),
             parkingSpotMapper.toResponses(parkingLot.getSpots().stream()
                 .sorted(Comparator.comparing(ParkingSpot::getCategory))
@@ -218,6 +240,12 @@ public class ParkingLotService {
             return true;
         }
         return response.pricePerHour().compareTo(maxPricePerHour) <= 0;
+    }
+
+    private void validateSctOccupancy(Integer totalSctSpots, Integer occupiedSctSpots) {
+        if (occupiedSctSpots > totalSctSpots) {
+            throw new IllegalArgumentException("Occupied SCT spots cannot exceed total SCT spots.");
+        }
     }
 
     private ParkingLot getParkingLotEntity(Long id) {

@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import pl.krakow.parking.model.EmissionStandard;
 import pl.krakow.parking.model.FuelType;
 import pl.krakow.parking.model.ParkingLot;
+import pl.krakow.parking.model.ParkingLotStatus;
 import pl.krakow.parking.model.ParkingSpot;
 import pl.krakow.parking.model.ParkingZone;
 import pl.krakow.parking.model.Price;
@@ -256,13 +257,23 @@ public class DataSeeder implements CommandLineRunner {
         String parkingType
     ) {
         int occupiedSpots = calculateOccupied(totalSpots);
+        int regular = (int) Math.round(totalSpots * 0.7);
+        int ev = (int) Math.round(totalSpots * 0.1);
+        int disabled = (int) Math.round(totalSpots * 0.1);
+        int sctReady = totalSpots - regular - ev - disabled;
+        int occupiedSct = allocateOccupied(sctReady, occupiedSpots, totalSpots);
         ParkingLot parkingLot = ParkingLot.builder()
             .name(name)
             .address(address)
+            .description("Testowy parking typu %s w strefie %s.".formatted(parkingType, zone))
+            .status(ParkingLotStatus.ACTIVE)
             .zone(zone)
             .location(createPoint(longitude, latitude))
             .totalSpots(totalSpots)
             .occupiedSpots(occupiedSpots)
+            .totalSctSpots(sctReady)
+            .occupiedSctSpots(occupiedSct)
+            .openingHours("24/7")
             .parkingType(parkingType)
             .build();
 

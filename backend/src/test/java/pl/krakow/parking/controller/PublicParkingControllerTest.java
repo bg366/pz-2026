@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import pl.krakow.parking.config.SecurityConfig;
 import pl.krakow.parking.dto.ParkingSearchResponse;
 import pl.krakow.parking.exception.GlobalExceptionHandler;
+import pl.krakow.parking.model.ParkingLotStatus;
 import pl.krakow.parking.model.ParkingZone;
 import pl.krakow.parking.service.ParkingLotService;
 
@@ -39,14 +40,18 @@ class PublicParkingControllerTest {
             .willReturn(List.of(
                 new ParkingSearchResponse(
                     1L,
-                    "Parking Rynek Główny",
-                    "Rynek Główny, Kraków",
+                    "Parking Rynek Glowny",
+                    "Rynek Glowny, Krakow",
+                    "Parking testowy",
+                    ParkingLotStatus.ACTIVE,
                     ParkingZone.ZONE_A,
                     50.0615,
                     19.9370,
                     0.35,
                     true,
                     30,
+                    5,
+                    "24/7",
                     BigDecimal.valueOf(6),
                     "PLN",
                     "UNDERGROUND"
@@ -59,7 +64,7 @@ class PublicParkingControllerTest {
                 .param("radiusKm", "3")
                 .accept(MediaType.APPLICATION_JSON))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[0].name").value("Parking Rynek Główny"))
+            .andExpect(jsonPath("$[0].name").value("Parking Rynek Glowny"))
             .andExpect(jsonPath("$[0].sctAllowed").value(true))
             .andExpect(jsonPath("$[0].distanceKm").value(0.35));
     }

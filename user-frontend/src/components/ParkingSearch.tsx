@@ -17,12 +17,16 @@ type SearchResult = {
   id: number;
   name: string;
   address: string;
+  description: string | null;
+  status: "ACTIVE" | "INACTIVE" | "TEMPORARILY_CLOSED";
   zone: string;
   latitude: number;
   longitude: number;
   distanceKm: number;
   sctAllowed: boolean;
   availableSpots: number;
+  availableSctSpots: number;
+  openingHours: string;
   pricePerHour: number | null;
   currency: string | null;
   parkingType: string;
@@ -290,6 +294,18 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
               <div>
                 <dt>Dostępne miejsca</dt>
                 <dd>{result.availableSpots}</dd>
+              </div>
+              <div>
+                <dt>Miejsca SCT</dt>
+                <dd>{result.availableSctSpots}</dd>
+              </div>
+              <div>
+                <dt>Godziny</dt>
+                <dd>{result.openingHours}</dd>
+              </div>
+              <div>
+                <dt>Status</dt>
+                <dd>{result.status}</dd>
               </div>
               <div>
                 <dt>Cena</dt>

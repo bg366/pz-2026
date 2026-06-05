@@ -41,6 +41,13 @@ public class ParkingLot {
 
     private String address;
 
+    @Column(length = 1000)
+    private String description;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private ParkingLotStatus status;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ParkingZone zone;
@@ -53,6 +60,15 @@ public class ParkingLot {
 
     @Column(nullable = false)
     private Integer occupiedSpots;
+
+    @Column(nullable = false)
+    private Integer totalSctSpots;
+
+    @Column(nullable = false)
+    private Integer occupiedSctSpots;
+
+    @Column(nullable = false)
+    private String openingHours;
 
     @Column(nullable = false)
     private String parkingType;
