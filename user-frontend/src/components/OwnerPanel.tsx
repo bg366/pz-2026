@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { createOwnerParkingLot, getOwnerParkingLots, updateOwnerOccupancy, updateOwnerParkingPrice, updateOwnerSpots } from "../api/client";
-import type { AuthState, OwnerParkingLot, OwnerParkingSpot, ParkingZone, PriceForm } from "../api/types";
+import type { AuthState, OwnerParkingLot, OwnerParkingSpot, ParkingAccessType, ParkingZone, PriceForm } from "../api/types";
 import OwnerLocationPicker from "./OwnerLocationPicker";
 
 const SPOT_CATS = ["REGULAR", "EV", "DISABLED", "SCT_READY"] as const;
@@ -44,6 +44,7 @@ type CreateParkingForm = {
   totalSctSpots: string;
   openingHours: string;
   parkingType: string;
+  accessType: ParkingAccessType;
 };
 
 const emptyCreateForm: CreateParkingForm = {
@@ -56,7 +57,8 @@ const emptyCreateForm: CreateParkingForm = {
   totalSpots: "20",
   totalSctSpots: "0",
   openingHours: "24/7",
-  parkingType: "PRIVATE"
+  parkingType: "PRIVATE",
+  accessType: "BARRIER"
 };
 
 function buildSpotForms(spots: OwnerParkingSpot[]): SpotForm[] {
@@ -198,7 +200,8 @@ export default function OwnerPanel({ auth }: Props) {
         totalSpots: Number(createForm.totalSpots),
         totalSctSpots: Number(createForm.totalSctSpots),
         openingHours: createForm.openingHours,
-        parkingType: createForm.parkingType
+        parkingType: createForm.parkingType,
+        accessType: createForm.accessType
       });
       setCreateForm(emptyCreateForm);
       setStatus(`Parking "${created.name}" zgłoszony do zatwierdzenia przez administratora.`);
@@ -281,6 +284,13 @@ export default function OwnerPanel({ auth }: Props) {
             <option value="PUBLIC">Publiczny</option>
             <option value="PARK_AND_RIDE">Park & Ride</option>
             <option value="UNDERGROUND">Podziemny</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>Typ dostępu</span>
+          <select value={createForm.accessType} onChange={(e) => updateCreateField("accessType", e.target.value as ParkingAccessType)}>
+            <option value="BARRIER">Szlaban (rezerwacja opcjonalna)</option>
+            <option value="OPEN">Otwarty (oplata z gory po wejsciu)</option>
           </select>
         </label>
         <label className="field">

@@ -142,6 +142,7 @@ public class ParkingLotService {
             .occupiedSctSpots(0)
             .openingHours(request.openingHours())
             .parkingType(request.parkingType())
+            .accessType(request.accessType() != null ? request.accessType() : ParkingAccessType.BARRIER)
             .owner(owner)
             .build();
         return toParkingLotResponse(parkingLotRepository.save(parkingLot));

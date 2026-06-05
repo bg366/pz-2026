@@ -144,6 +144,7 @@ export type OwnerParkingCreateRequest = {
   totalSctSpots: number;
   openingHours: string;
   parkingType: string;
+  accessType: ParkingAccessType;
 };
 
 export type NotificationType = "RESERVATION_EXPIRING" | "RESERVATION_EXPIRED" | "RESERVATION_CONFIRMED";
