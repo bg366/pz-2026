@@ -3,8 +3,10 @@ package pl.krakow.parking.exception;
 import jakarta.validation.ConstraintViolationException;
 import java.time.Instant;
 import java.util.List;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -48,6 +50,19 @@ public class GlobalExceptionHandler {
             .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), exception.getMessage(), Instant.now()));
     }
 
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException exception) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(new ErrorResponse(HttpStatus.FORBIDDEN.value(), exception.getMessage(), Instant.now()));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrity(DataIntegrityViolationException exception) {
+        String message = resolveDataIntegrityMessage(exception);
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(new ErrorResponse(HttpStatus.CONFLICT.value(), message, Instant.now()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception exception) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -60,5 +75,17 @@ public class GlobalExceptionHandler {
 
     private String formatFieldError(FieldError error) {
         return error.getField() + ": " + error.getDefaultMessage();
+    }
+
+    private String resolveDataIntegrityMessage(DataIntegrityViolationException exception) {
+        String msg = exception.getMostSpecificCause().getMessage();
+        if (msg == null) return "Data integrity violation";
+        if (msg.contains("users_email_key") || msg.contains("uq_users_email")) {
+            return "Email address is already registered";
+        }
+        if (msg.contains("uq_vehicles_user_registration") || msg.contains("uq_vehicles_public_registration")) {
+            return "Vehicle with this registration number already exists";
+        }
+        return "Data integrity violation";
     }
 }
