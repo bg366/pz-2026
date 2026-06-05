@@ -15,7 +15,7 @@ public class OpenApiConfig {
             .info(new Info()
                 .title("Krakow Parking API")
                 .version("0.0.1-SNAPSHOT")
-                .description("MVP scaffold API for Krakow parking discovery, SCT verification and tariff simulation.")
+                .description("MVP scaffold API for Krakow parking discovery, SCT verification and price calculation.")
                 .contact(new Contact().name("Krakow Parking Team")));
     }
 }

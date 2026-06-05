@@ -2,7 +2,6 @@ package pl.krakow.parking.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalTime;
 import java.util.Comparator;
 import java.util.List;
 import org.locationtech.jts.geom.Coordinate;
@@ -21,32 +20,37 @@ import pl.krakow.parking.dto.ParkingSpotResponse;
 import pl.krakow.parking.dto.ParkingLotUpdateRequest;
 import pl.krakow.parking.dto.ParkingSearchRequest;
 import pl.krakow.parking.dto.ParkingSearchResponse;
+import pl.krakow.parking.dto.PriceResponse;
 import pl.krakow.parking.exception.ResourceNotFoundException;
 import pl.krakow.parking.mapper.ParkingLotMapper;
 import pl.krakow.parking.mapper.ParkingSpotMapper;
 import pl.krakow.parking.model.ParkingLot;
 import pl.krakow.parking.model.ParkingSpot;
-import pl.krakow.parking.model.ParkingZone;
-import pl.krakow.parking.model.Tariff;
+import pl.krakow.parking.model.Price;
 import pl.krakow.parking.repository.ParkingLotRepository;
+import pl.krakow.parking.repository.PriceRepository;
 
 @Service
 public class ParkingLotService {
 
     private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory(new PrecisionModel(), 4326);
+    private static final String CURRENCY = "PLN";
 
     private final ParkingLotRepository parkingLotRepository;
+    private final PriceRepository priceRepository;
     private final ParkingLotMapper parkingLotMapper;
     private final ParkingSpotMapper parkingSpotMapper;
     private final SctVerificationService sctVerificationService;
 
     public ParkingLotService(
         ParkingLotRepository parkingLotRepository,
+        PriceRepository priceRepository,
         ParkingLotMapper parkingLotMapper,
         ParkingSpotMapper parkingSpotMapper,
         SctVerificationService sctVerificationService
     ) {
         this.parkingLotRepository = parkingLotRepository;
+        this.priceRepository = priceRepository;
         this.parkingLotMapper = parkingLotMapper;
         this.parkingSpotMapper = parkingSpotMapper;
         this.sctVerificationService = sctVerificationService;
@@ -54,12 +58,12 @@ public class ParkingLotService {
 
     @Transactional(readOnly = true)
     public Page<ParkingLotResponse> findAll(Pageable pageable) {
-        return parkingLotRepository.findAll(pageable).map(parkingLotMapper::toResponse);
+        return parkingLotRepository.findAll(pageable).map(this::toParkingLotResponse);
     }
 
     @Transactional(readOnly = true)
     public ParkingLotResponse findById(Long id) {
-        return parkingLotMapper.toResponse(getParkingLotEntity(id));
+        return toParkingLotResponse(getParkingLotEntity(id));
     }
 
     @Transactional
@@ -67,8 +71,7 @@ public class ParkingLotService {
         ParkingLot parkingLot = parkingLotMapper.toEntity(request);
         parkingLot.setLocation(createPoint(request.longitude(), request.latitude()));
         parkingLot.setOccupiedSpots(0);
-        parkingLot.addTariff(defaultTariff(parkingLot));
-        return parkingLotMapper.toResponse(parkingLotRepository.save(parkingLot));
+        return toParkingLotResponse(parkingLotRepository.save(parkingLot));
     }
 
     @Transactional
@@ -79,14 +82,14 @@ public class ParkingLotService {
         if (parkingLot.getOccupiedSpots() > parkingLot.getTotalSpots()) {
             parkingLot.setOccupiedSpots(parkingLot.getTotalSpots());
         }
-        return parkingLotMapper.toResponse(parkingLotRepository.save(parkingLot));
+        return toParkingLotResponse(parkingLotRepository.save(parkingLot));
     }
 
     @Transactional
     public ParkingLotResponse updateOccupancy(Long id, OccupancyUpdateRequest request) {
         ParkingLot parkingLot = getParkingLotEntity(id);
         parkingLot.setOccupiedSpots(Math.min(request.occupiedSpots(), parkingLot.getTotalSpots()));
-        return parkingLotMapper.toResponse(parkingLotRepository.save(parkingLot));
+        return toParkingLotResponse(parkingLotRepository.save(parkingLot));
     }
 
     @Transactional
@@ -141,16 +144,16 @@ public class ParkingLotService {
 
         parkingLot.setTotalSpots(totalSpots);
         parkingLot.setOccupiedSpots(occupiedSpots);
-        return parkingLotMapper.toResponse(parkingLotRepository.save(parkingLot));
+        return toParkingLotResponse(parkingLotRepository.save(parkingLot));
     }
 
     private ParkingSearchResponse toSearchResponse(ParkingLot parkingLot, ParkingSearchRequest request) {
-        Tariff tariff = parkingLot.getTariffs().stream().findFirst().orElse(null);
+        Price price = findEffectivePrice(parkingLot);
         boolean sctAllowed = request.fuelType() == null || request.emissionStandard() == null
             || sctVerificationService.canEnter(request.fuelType(), request.emissionStandard(), parkingLot.getZone());
 
-        BigDecimal pricePerHour = tariff != null ? tariff.getPricePerHour() : null;
-        String currency = tariff != null ? tariff.getCurrency() : null;
+        BigDecimal pricePerHour = price != null ? price.getFirstHourPrice() : null;
+        String currency = price != null ? CURRENCY : null;
 
         return new ParkingSearchResponse(
             parkingLot.getId(),
@@ -166,6 +169,48 @@ public class ParkingLotService {
             currency,
             parkingLot.getParkingType()
         );
+    }
+
+    private ParkingLotResponse toParkingLotResponse(ParkingLot parkingLot) {
+        return new ParkingLotResponse(
+            parkingLot.getId(),
+            parkingLot.getName(),
+            parkingLot.getAddress(),
+            parkingLot.getZone(),
+            parkingLot.getLocation() != null ? parkingLot.getLocation().getY() : null,
+            parkingLot.getLocation() != null ? parkingLot.getLocation().getX() : null,
+            parkingLot.getTotalSpots(),
+            parkingLot.getOccupiedSpots(),
+            parkingLot.getParkingType(),
+            parkingSpotMapper.toResponses(parkingLot.getSpots().stream()
+                .sorted(Comparator.comparing(ParkingSpot::getCategory))
+                .toList()),
+            toPriceResponse(findEffectivePrice(parkingLot))
+        );
+    }
+
+    private PriceResponse toPriceResponse(Price price) {
+        if (price == null) {
+            return null;
+        }
+
+        return new PriceResponse(
+            price.getId(),
+            price.getZone() != null ? price.getZone().getCode() : null,
+            price.getParkingLot() != null ? price.getParkingLot().getId() : null,
+            price.getFirstHourPrice(),
+            price.getSecondHourPrice(),
+            price.getThirdHourPrice(),
+            price.getNextHourPrice(),
+            price.getDailyPrice(),
+            CURRENCY
+        );
+    }
+
+    private Price findEffectivePrice(ParkingLot parkingLot) {
+        return priceRepository.findByParkingLotId(parkingLot.getId())
+            .or(() -> priceRepository.findByZoneCode(parkingLot.getZone()))
+            .orElse(null);
     }
 
     private boolean matchesPrice(ParkingSearchResponse response, BigDecimal maxPricePerHour) {
@@ -184,26 +229,6 @@ public class ParkingLotService {
         Point point = GEOMETRY_FACTORY.createPoint(new Coordinate(longitude, latitude));
         point.setSRID(4326);
         return point;
-    }
-
-    private Tariff defaultTariff(ParkingLot parkingLot) {
-        return Tariff.builder()
-            .parkingLot(parkingLot)
-            .zone(parkingLot.getZone())
-            .dayOfWeek(null)
-            .hourFrom(LocalTime.of(0, 0))
-            .hourTo(LocalTime.of(23, 59))
-            .pricePerHour(defaultRate(parkingLot.getZone()))
-            .currency("PLN")
-            .build();
-    }
-
-    private BigDecimal defaultRate(ParkingZone zone) {
-        return switch (zone) {
-            case ZONE_A -> BigDecimal.valueOf(6);
-            case ZONE_B -> BigDecimal.valueOf(4);
-            case ZONE_C -> BigDecimal.valueOf(2);
-        };
     }
 
     private double calculateDistanceKm(double fromLat, double fromLng, Point target) {

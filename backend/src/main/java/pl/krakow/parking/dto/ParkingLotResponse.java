@@ -14,6 +14,6 @@ public record ParkingLotResponse(
     Integer occupiedSpots,
     String parkingType,
     List<ParkingSpotResponse> spots,
-    List<TariffResponse> tariffs
+    PriceResponse price
 ) {
 }

@@ -2,13 +2,14 @@ package pl.krakow.parking.seed;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import pl.krakow.parking.model.EmissionStandard;
@@ -16,50 +17,229 @@ import pl.krakow.parking.model.FuelType;
 import pl.krakow.parking.model.ParkingLot;
 import pl.krakow.parking.model.ParkingSpot;
 import pl.krakow.parking.model.ParkingZone;
+import pl.krakow.parking.model.Price;
 import pl.krakow.parking.model.SctRule;
 import pl.krakow.parking.model.SpotCategory;
-import pl.krakow.parking.model.Tariff;
+import pl.krakow.parking.model.User;
+import pl.krakow.parking.model.UserRole;
+import pl.krakow.parking.model.UserStatus;
 import pl.krakow.parking.model.Vehicle;
+import pl.krakow.parking.model.Zone;
 import pl.krakow.parking.repository.ParkingLotRepository;
+import pl.krakow.parking.repository.PriceRepository;
 import pl.krakow.parking.repository.SctRuleRepository;
+import pl.krakow.parking.repository.UserRepository;
 import pl.krakow.parking.repository.VehicleRepository;
+import pl.krakow.parking.repository.ZoneRepository;
 
 @Component
 public class DataSeeder implements CommandLineRunner {
 
     private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory(new PrecisionModel(), 4326);
+    private static final Set<String> PRIVATE_PARKING_NAMES = Set.of(
+        "Parking Bonarka City Center",
+        "Parking Galeria Kazimierz"
+    );
 
     private final ParkingLotRepository parkingLotRepository;
+    private final ZoneRepository zoneRepository;
+    private final PriceRepository priceRepository;
     private final SctRuleRepository sctRuleRepository;
     private final VehicleRepository vehicleRepository;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
     private final Random random = new Random(2026);
 
     public DataSeeder(
         ParkingLotRepository parkingLotRepository,
+        ZoneRepository zoneRepository,
+        PriceRepository priceRepository,
         SctRuleRepository sctRuleRepository,
-        VehicleRepository vehicleRepository
+        VehicleRepository vehicleRepository,
+        UserRepository userRepository,
+        PasswordEncoder passwordEncoder
     ) {
         this.parkingLotRepository = parkingLotRepository;
+        this.zoneRepository = zoneRepository;
+        this.priceRepository = priceRepository;
         this.sctRuleRepository = sctRuleRepository;
         this.vehicleRepository = vehicleRepository;
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
     @Transactional
     public void run(String... args) {
+        seedUsers();
+        seedZonesAndPrices();
+        seedParkingSpecificPrices();
+
         if (parkingLotRepository.count() > 0) {
             return;
         }
 
         seedParkingLots();
+        seedParkingSpecificPrices();
         seedSctRules();
         seedVehicles();
     }
 
+    private void seedUsers() {
+        ensureUser(
+            "Admin",
+            "Krakow",
+            "admin@krakow-parking.local",
+            "Admin123!",
+            UserRole.ADMIN
+        );
+        ensureUser(
+            "Jan",
+            "Kierowca",
+            "user@krakow-parking.local",
+            "User12345!",
+            UserRole.USER
+        );
+    }
+
+    private void ensureUser(String firstName, String lastName, String email, String password, UserRole role) {
+        if (userRepository.existsByEmailIgnoreCase(email)) {
+            return;
+        }
+
+        userRepository.save(User.builder()
+            .firstName(firstName)
+            .lastName(lastName)
+            .email(email)
+            .passwordHash(passwordEncoder.encode(password))
+            .role(role)
+            .status(UserStatus.ACTIVE)
+            .build());
+    }
+
+    private void seedZonesAndPrices() {
+        Zone zoneA = ensureZone(
+            ParkingZone.ZONE_A,
+            "Strefa A",
+            "Centralna strefa parkowania z najwyzszymi stawkami testowymi."
+        );
+        Zone zoneB = ensureZone(
+            ParkingZone.ZONE_B,
+            "Strefa B",
+            "Srodmiejska strefa parkowania ze srednimi stawkami testowymi."
+        );
+        Zone zoneC = ensureZone(
+            ParkingZone.ZONE_C,
+            "Strefa C",
+            "Peryferyjna strefa parkowania z najnizszymi stawkami testowymi."
+        );
+
+        ensurePrice(
+            zoneA,
+            BigDecimal.valueOf(6),
+            BigDecimal.valueOf(7),
+            BigDecimal.valueOf(8),
+            BigDecimal.valueOf(6),
+            BigDecimal.valueOf(55)
+        );
+        ensurePrice(
+            zoneB,
+            BigDecimal.valueOf(4),
+            BigDecimal.valueOf(5),
+            BigDecimal.valueOf(6),
+            BigDecimal.valueOf(4),
+            BigDecimal.valueOf(38)
+        );
+        ensurePrice(
+            zoneC,
+            BigDecimal.valueOf(2),
+            BigDecimal.valueOf(3),
+            BigDecimal.valueOf(4),
+            BigDecimal.valueOf(2),
+            BigDecimal.valueOf(22)
+        );
+    }
+
+    private Zone ensureZone(ParkingZone code, String name, String description) {
+        return zoneRepository.findByCode(code)
+            .orElseGet(() -> zoneRepository.save(Zone.builder()
+                .code(code)
+                .name(name)
+                .description(description)
+                .build()));
+    }
+
+    private void ensurePrice(
+        Zone zone,
+        BigDecimal firstHourPrice,
+        BigDecimal secondHourPrice,
+        BigDecimal thirdHourPrice,
+        BigDecimal nextHourPrice,
+        BigDecimal dailyPrice
+    ) {
+        if (priceRepository.findByZoneCode(zone.getCode()).isPresent()) {
+            return;
+        }
+
+        priceRepository.save(Price.builder()
+            .zone(zone)
+            .firstHourPrice(firstHourPrice)
+            .secondHourPrice(secondHourPrice)
+            .thirdHourPrice(thirdHourPrice)
+            .nextHourPrice(nextHourPrice)
+            .dailyPrice(dailyPrice)
+            .build());
+    }
+
+    private void seedParkingSpecificPrices() {
+        parkingLotRepository.findAll().stream()
+            .filter(parkingLot -> "PRIVATE".equals(parkingLot.getParkingType())
+                || PRIVATE_PARKING_NAMES.contains(parkingLot.getName()))
+            .forEach(parkingLot -> ensureParkingPrice(
+                ensurePrivateParkingType(parkingLot),
+                BigDecimal.valueOf(8),
+                BigDecimal.valueOf(8),
+                BigDecimal.valueOf(8),
+                BigDecimal.valueOf(7),
+                BigDecimal.valueOf(70)
+            ));
+    }
+
+    private ParkingLot ensurePrivateParkingType(ParkingLot parkingLot) {
+        if ("PRIVATE".equals(parkingLot.getParkingType())) {
+            return parkingLot;
+        }
+
+        parkingLot.setParkingType("PRIVATE");
+        return parkingLotRepository.save(parkingLot);
+    }
+
+    private void ensureParkingPrice(
+        ParkingLot parkingLot,
+        BigDecimal firstHourPrice,
+        BigDecimal secondHourPrice,
+        BigDecimal thirdHourPrice,
+        BigDecimal nextHourPrice,
+        BigDecimal dailyPrice
+    ) {
+        if (priceRepository.findByParkingLotId(parkingLot.getId()).isPresent()) {
+            return;
+        }
+
+        priceRepository.save(Price.builder()
+            .parkingLot(parkingLot)
+            .firstHourPrice(firstHourPrice)
+            .secondHourPrice(secondHourPrice)
+            .thirdHourPrice(thirdHourPrice)
+            .nextHourPrice(nextHourPrice)
+            .dailyPrice(dailyPrice)
+            .build());
+    }
+
     private void seedParkingLots() {
         createParking("Parking Galeria Krakowska", "ul. Pawia 5, Kraków", ParkingZone.ZONE_A, 50.0670, 19.9450, 500, "PUBLIC");
-        createParking("Parking Bonarka City Center", "ul. Kamieńskiego 11, Kraków", ParkingZone.ZONE_B, 50.0305, 19.9570, 1100, "PUBLIC");
-        createParking("Parking Galeria Kazimierz", "ul. Podgórska 34, Kraków", ParkingZone.ZONE_A, 50.0475, 19.9560, 650, "PUBLIC");
+        createParking("Parking Bonarka City Center", "ul. Kamieńskiego 11, Kraków", ParkingZone.ZONE_B, 50.0305, 19.9570, 1100, "PRIVATE");
+        createParking("Parking Galeria Kazimierz", "ul. Podgórska 34, Kraków", ParkingZone.ZONE_A, 50.0475, 19.9560, 650, "PRIVATE");
         createParking("Parking P+R Czerwone Maki", "ul. Czerwone Maki, Kraków", ParkingZone.ZONE_C, 50.0260, 19.8890, 250, "PARK_AND_RIDE");
         createParking("Parking P+R Bieżanów", "ul. Bieżanowska, Kraków", ParkingZone.ZONE_C, 50.0140, 20.0230, 200, "PARK_AND_RIDE");
         createParking("Parking Rynek Główny", "Rynek Główny, Kraków", ParkingZone.ZONE_A, 50.0615, 19.9370, 120, "UNDERGROUND");
@@ -88,14 +268,6 @@ public class DataSeeder implements CommandLineRunner {
             .build();
 
         addSpotBreakdown(parkingLot, totalSpots, occupiedSpots);
-        parkingLot.addTariff(Tariff.builder()
-            .zone(zone)
-            .dayOfWeek(null)
-            .hourFrom(LocalTime.of(0, 0))
-            .hourTo(LocalTime.of(23, 59))
-            .pricePerHour(defaultRate(zone))
-            .currency("PLN")
-            .build());
 
         parkingLotRepository.save(parkingLot);
     }
@@ -177,14 +349,6 @@ public class DataSeeder implements CommandLineRunner {
             Vehicle.builder().registrationNumber("KR5678B").fuelType(FuelType.PETROL).emissionStandard(EmissionStandard.EURO_5).vehicleType("CAR").build(),
             Vehicle.builder().registrationNumber("KR9EV22").fuelType(FuelType.ELECTRIC).emissionStandard(EmissionStandard.ELECTRIC).vehicleType("CAR").build()
         ));
-    }
-
-    private BigDecimal defaultRate(ParkingZone zone) {
-        return switch (zone) {
-            case ZONE_A -> BigDecimal.valueOf(6);
-            case ZONE_B -> BigDecimal.valueOf(4);
-            case ZONE_C -> BigDecimal.valueOf(2);
-        };
     }
 
     private org.locationtech.jts.geom.Point createPoint(double longitude, double latitude) {

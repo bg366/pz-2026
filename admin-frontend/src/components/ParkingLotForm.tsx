@@ -29,19 +29,22 @@ type ParkingLotResponse = {
     total: number;
     occupied: number;
   }[];
-  tariffs: {
+  price: {
     id: number;
-    zone: "ZONE_A" | "ZONE_B" | "ZONE_C";
-    dayOfWeek: string | null;
-    hourFrom: string | null;
-    hourTo: string | null;
-    pricePerHour: number;
+    zone: "ZONE_A" | "ZONE_B" | "ZONE_C" | null;
+    parkingLotId: number | null;
+    firstHourPrice: number;
+    secondHourPrice: number;
+    thirdHourPrice: number;
+    nextHourPrice: number;
+    dailyPrice: number;
     currency: string;
-  }[];
+  } | null;
 };
 
 type ParkingLotFormProps = {
   initialData?: ParkingLotPayload | null;
+  authToken: string;
   onSaved: (parkingLot: ParkingLotResponse) => Promise<void> | void;
 };
 
@@ -108,7 +111,7 @@ const styles = {
   }
 } satisfies Record<string, CSSProperties>;
 
-export default function ParkingLotForm({ initialData, onSaved }: ParkingLotFormProps) {
+export default function ParkingLotForm({ initialData, authToken, onSaved }: ParkingLotFormProps) {
   const [formData, setFormData] = useState<ParkingLotPayload>(emptyState);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -132,7 +135,8 @@ export default function ParkingLotForm({ initialData, onSaved }: ParkingLotFormP
       const response = await fetch(endpoint, {
         method,
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          Authorization: `Basic ${authToken}`
         },
         body: JSON.stringify({
           name: formData.name,
@@ -211,6 +215,7 @@ export default function ParkingLotForm({ initialData, onSaved }: ParkingLotFormP
             onChange={(event) => updateField("parkingType", event.target.value)}
           >
             <option value="PUBLIC">PUBLIC</option>
+            <option value="PRIVATE">PRIVATE</option>
             <option value="PARK_AND_RIDE">PARK_AND_RIDE</option>
             <option value="UNDERGROUND">UNDERGROUND</option>
           </select>
