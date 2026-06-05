@@ -33,6 +33,7 @@ public class SecurityConfig {
                     "/actuator/health"
                 ).permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/integrations/**").hasRole("ADMIN")
                 .requestMatchers("/api/owner/**").hasAnyRole("PARKING_OWNER", "ADMIN")
                 .requestMatchers("/api/me/**", "/api/auth/me").authenticated()
                 .anyRequest().permitAll()

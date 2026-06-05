@@ -6,15 +6,17 @@ import ParkingLotsView from "./views/ParkingLotsView";
 import SctRulesView from "./views/SctRulesView";
 import UsersView from "./views/UsersView";
 import ReportsView from "./views/ReportsView";
+import IotView from "./views/IotView";
 import { styles } from "./styles";
 
-type View = "parking" | "sct" | "users" | "reports";
+type View = "parking" | "sct" | "users" | "reports" | "iot";
 
 const NAV_ITEMS: { id: View; label: string }[] = [
   { id: "parking", label: "Parkingi" },
   { id: "sct", label: "Reguły SCT" },
   { id: "users", label: "Użytkownicy" },
-  { id: "reports", label: "Raporty" }
+  { id: "reports", label: "Raporty" },
+  { id: "iot", label: "IoT" }
 ];
 
 function readStoredAuth(): AuthState | null {
@@ -122,6 +124,7 @@ export default function App() {
         {view === "sct" ? <SctRulesView token={auth.token} /> : null}
         {view === "users" ? <UsersView token={auth.token} /> : null}
         {view === "reports" ? <ReportsView token={auth.token} /> : null}
+        {view === "iot" ? <IotView token={auth.token} /> : null}
       </div>
     </main>
   );
