@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import type { ParkingLot } from "../api/types";
 import { useToast } from "./Toast";
+import AdminLocationPicker from "./AdminLocationPicker";
 
 export type ParkingLotPayload = {
   id?: number;
   name: string;
   address: string;
   description: string;
-  status: "ACTIVE" | "INACTIVE" | "TEMPORARILY_CLOSED";
+  status: "ACTIVE" | "INACTIVE" | "TEMPORARILY_CLOSED" | "PENDING_APPROVAL";
   zone: "ZONE_A" | "ZONE_B" | "ZONE_C";
   latitude: string;
   longitude: string;
@@ -65,7 +66,7 @@ export default function ParkingLotForm({ initialData, authToken, onSaved }: Park
       const url = formData.id ? `/api/admin/parking-lots/${formData.id}` : "/api/admin/parking-lots";
       const response = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json", Authorization: `Basic ${authToken}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
         body: JSON.stringify({
           name: formData.name, address: formData.address,
           description: formData.description || null,
@@ -122,6 +123,7 @@ export default function ParkingLotForm({ initialData, authToken, onSaved }: Park
             <option value="ACTIVE">Aktywny</option>
             <option value="INACTIVE">Nieaktywny</option>
             <option value="TEMPORARILY_CLOSED">Tymczasowo zamknięty</option>
+            <option value="PENDING_APPROVAL">Oczekuje na zatwierdzenie</option>
           </select>
         </label>
       </div>
@@ -152,6 +154,15 @@ export default function ParkingLotForm({ initialData, authToken, onSaved }: Park
           <input style={inp} type="number" step="0.0001" value={formData.longitude} onChange={(e) => set("longitude", e.target.value)} required />
         </label>
       </div>
+
+      <AdminLocationPicker
+        latitude={Number(formData.latitude)}
+        longitude={Number(formData.longitude)}
+        onChange={(latitude, longitude) => {
+          set("latitude", String(latitude));
+          set("longitude", String(longitude));
+        }}
+      />
 
       <label style={fld}>
         <span style={lbl}>Łączna liczba miejsc</span>

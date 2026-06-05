@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   getParkingLots, getParkingLot, deleteParkingLot,
-  updateOccupancy, updateSpots, updateParkingLotPrice, updateZonePrice, assignParkingLotOwner, getUsers
+  updateOccupancy, updateSpots, updateParkingLotPrice, updateZonePrice, assignParkingLotOwner, getUsers, saveParkingLot
 } from "../api/client";
 import type { AdminUser, ParkingLot, PriceForm, SpotFormEntry } from "../api/types";
 import ParkingLotForm, { type ParkingLotPayload } from "../components/ParkingLotForm";
@@ -64,6 +64,8 @@ export default function ParkingLotsView({ token }: Props) {
   const [priceForm, setPriceForm] = useState<PriceForm>(emptyPrice);
   const [ownerIdInput, setOwnerIdInput] = useState("");
   const [ownerUsers, setOwnerUsers] = useState<AdminUser[]>([]);
+  const [parkingFilter, setParkingFilter] = useState("");
+  const [parkingSort, setParkingSort] = useState<"ID_ASC" | "ID_DESC" | "NAME_ASC" | "STATUS_ASC">("ID_ASC");
 
   const detailsRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
@@ -191,6 +193,40 @@ export default function ParkingLotsView({ token }: Props) {
     }
   }
 
+  async function approveParking(parking: ParkingLot) {
+    try {
+      const updated = await saveParkingLot({ ...mapParkingToPayload(parking), status: "ACTIVE" }, token);
+      showToast("Parking zatwierdzony.");
+      if (selected?.id === updated.id) setSelected(updated);
+      await loadAll();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Błąd zatwierdzania parkingu.", "error");
+    }
+  }
+
+  const visibleParkingLots = parkingLots
+    .filter((parking) => {
+      const needle = parkingFilter.trim().toLowerCase();
+      if (!needle) return true;
+      return [
+        String(parking.id),
+        parking.name,
+        parking.address,
+        parking.status,
+        parking.zone,
+        parking.parkingType,
+        parking.ownerEmail ?? ""
+      ].some((value) => value.toLowerCase().includes(needle));
+    })
+    .sort((a, b) => {
+      switch (parkingSort) {
+        case "ID_DESC": return b.id - a.id;
+        case "NAME_ASC": return a.name.localeCompare(b.name, "pl");
+        case "STATUS_ASC": return a.status.localeCompare(b.status);
+        case "ID_ASC": return a.id - b.id;
+      }
+    });
+
   return (
     <div style={styles.stack}>
       {/* ── Lista parkingów ── */}
@@ -209,6 +245,27 @@ export default function ParkingLotsView({ token }: Props) {
         {loading ? (
           <p style={styles.helper}>Ładowanie...</p>
         ) : (
+          <>
+          <div className="admin-form-row" style={{ ...styles.formRow, marginBottom: "16px" }}>
+            <label style={styles.field}>
+              <span style={styles.label}>Filtr</span>
+              <input
+                style={styles.input}
+                value={parkingFilter}
+                onChange={(e) => setParkingFilter(e.target.value)}
+                placeholder="Szukaj po ID, nazwie, adresie, statusie albo właścicielu"
+              />
+            </label>
+            <label style={styles.field}>
+              <span style={styles.label}>Sortowanie</span>
+              <select style={styles.input} value={parkingSort} onChange={(e) => setParkingSort(e.target.value as typeof parkingSort)}>
+                <option value="ID_ASC">ID rosnąco</option>
+                <option value="ID_DESC">ID malejąco</option>
+                <option value="NAME_ASC">Nazwa A-Z</option>
+                <option value="STATUS_ASC">Status</option>
+              </select>
+            </label>
+          </div>
           <div style={styles.tableWrapper}>
             <table style={styles.table}>
               <thead>
@@ -221,7 +278,7 @@ export default function ParkingLotsView({ token }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {parkingLots.map((p) => (
+                {visibleParkingLots.map((p) => (
                   <tr key={p.id}>
                     <td style={styles.td}>
                       <span style={{ ...styles.badge, fontSize: "11px" }}>#{p.id}</span>
@@ -243,18 +300,22 @@ export default function ParkingLotsView({ token }: Props) {
                     <td style={styles.td}>
                       <div style={styles.actions}>
                         <button type="button" style={styles.subtleButton} onClick={() => void loadDetails(p.id)}>Szczegóły</button>
+                        {p.status === "PENDING_APPROVAL" ? (
+                          <button type="button" style={styles.button} onClick={() => void approveParking(p)}>Zatwierdź</button>
+                        ) : null}
                         <button type="button" style={styles.subtleButton} onClick={() => openForm(p)}>Edytuj</button>
                         <button type="button" style={styles.dangerButton} onClick={() => void handleDelete(p.id)}>Usuń</button>
                       </div>
                     </td>
                   </tr>
                 ))}
-                {parkingLots.length === 0 ? (
+                {visibleParkingLots.length === 0 ? (
                   <tr><td style={styles.td} colSpan={5}>Brak parkingów.</td></tr>
                 ) : null}
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 

@@ -24,7 +24,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
 }
 
 function makeHeaders(token: string, extra?: Record<string, string>): HeadersInit {
-  return { Authorization: `Basic ${token}`, ...extra };
+  return { Authorization: `Bearer ${token}`, ...extra };
 }
 
 export function normalizeParkingLots(payload: ParkingLot[] | PagedResponse<ParkingLot>): ParkingLot[] {
@@ -35,9 +35,9 @@ export function normalizeParkingLots(payload: ParkingLot[] | PagedResponse<Parki
 // --- Parking lots ---
 
 export async function getParkingLots(token: string): Promise<ParkingLot[]> {
-  const response = await fetch("/api/admin/parking-lots?size=50", { headers: makeHeaders(token) });
+  const response = await fetch("/api/admin/parking-lots?size=100&sort=id,asc", { headers: makeHeaders(token) });
   const payload = await handleResponse<ParkingLot[] | PagedResponse<ParkingLot>>(response);
-  return normalizeParkingLots(payload);
+  return normalizeParkingLots(payload).sort((a, b) => a.id - b.id);
 }
 
 export async function getParkingLot(id: number, token: string): Promise<ParkingLot> {
@@ -237,6 +237,20 @@ export async function loginAdmin(email: string, password: string): Promise<{ ema
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password })
+  });
+  return handleResponse(response);
+}
+
+export async function changePassword(
+  token: string,
+  currentPassword: string,
+  newPassword: string,
+  confirmPassword: string
+): Promise<{ email: string; firstName: string; lastName: string; roles: string[]; token: string }> {
+  const response = await fetch("/api/me/password", {
+    method: "PUT",
+    headers: makeHeaders(token, { "Content-Type": "application/json" }),
+    body: JSON.stringify({ currentPassword, newPassword, confirmPassword })
   });
   return handleResponse(response);
 }

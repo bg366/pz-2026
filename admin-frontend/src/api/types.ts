@@ -1,5 +1,5 @@
 export type ParkingZone = "ZONE_A" | "ZONE_B" | "ZONE_C";
-export type ParkingStatus = "ACTIVE" | "INACTIVE" | "TEMPORARILY_CLOSED";
+export type ParkingStatus = "ACTIVE" | "INACTIVE" | "TEMPORARILY_CLOSED" | "PENDING_APPROVAL";
 export type SpotCategory = "REGULAR" | "EV" | "DISABLED" | "SCT_READY";
 export type FuelType = "PETROL" | "DIESEL" | "LPG" | "HYBRID" | "ELECTRIC";
 export type UserRole = "ADMIN" | "PARKING_OWNER" | "USER";

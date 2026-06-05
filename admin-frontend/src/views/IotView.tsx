@@ -3,6 +3,8 @@ import type { FormEvent } from "react";
 import { styles } from "../styles";
 import { useToast } from "../components/Toast";
 import { PL, pl } from "../i18n";
+import { getParkingLots } from "../api/client";
+import type { ParkingLot } from "../api/types";
 
 type IotDeviceStatus = "ACTIVE" | "INACTIVE" | "ERROR";
 
@@ -14,7 +16,7 @@ type IotDevice = {
 type Props = { token: string };
 
 async function fetchDevices(token: string): Promise<IotDevice[]> {
-  const res = await fetch("/api/admin/iot-devices", { headers: { Authorization: `Basic ${token}` } });
+  const res = await fetch("/api/admin/iot-devices", { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json() as Promise<IotDevice[]>;
 }
@@ -22,7 +24,7 @@ async function fetchDevices(token: string): Promise<IotDevice[]> {
 async function registerDevice(token: string, parkingLotId: number, externalDeviceId: string): Promise<IotDevice> {
   const res = await fetch("/api/admin/iot-devices", {
     method: "POST",
-    headers: { Authorization: `Basic ${token}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ parkingLotId, externalDeviceId })
   });
   if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
@@ -32,7 +34,7 @@ async function registerDevice(token: string, parkingLotId: number, externalDevic
 async function sendReading(token: string, deviceId: string, occupiedSpots: number): Promise<IotDevice> {
   const res = await fetch("/api/integrations/iot/occupancy", {
     method: "POST",
-    headers: { Authorization: `Basic ${token}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ deviceId, occupiedSpots })
   });
   if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
@@ -53,6 +55,8 @@ function formatDate(iso: string | null): string {
 export default function IotView({ token }: Props) {
   const { showToast } = useToast();
   const [devices, setDevices] = useState<IotDevice[]>([]);
+  const [parkingLots, setParkingLots] = useState<ParkingLot[]>([]);
+  const [deviceFilter, setDeviceFilter] = useState("");
   const [parkingLotId, setParkingLotId] = useState("");
   const [externalDeviceId, setExternalDeviceId] = useState("");
   const [readingDeviceId, setReadingDeviceId] = useState("");
@@ -60,7 +64,12 @@ export default function IotView({ token }: Props) {
 
   async function load() {
     try {
-      setDevices(await fetchDevices(token));
+      const [nextDevices, nextParkings] = await Promise.all([
+        fetchDevices(token),
+        getParkingLots(token)
+      ]);
+      setDevices(nextDevices.sort((a, b) => a.id - b.id));
+      setParkingLots(nextParkings.sort((a, b) => a.id - b.id));
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Błąd ładowania urządzeń.", "error");
     }
@@ -94,6 +103,18 @@ export default function IotView({ token }: Props) {
     }
   }
 
+  const visibleDevices = devices.filter((device) => {
+    const needle = deviceFilter.trim().toLowerCase();
+    if (!needle) return true;
+    return [
+      String(device.id),
+      device.externalDeviceId,
+      device.parkingLotName,
+      String(device.parkingLotId),
+      device.status
+    ].some((value) => value.toLowerCase().includes(needle));
+  });
+
   return (
     <div style={styles.stack}>
       {/* Lista urządzeń */}
@@ -105,6 +126,16 @@ export default function IotView({ token }: Props) {
           </div>
           <button type="button" style={styles.subtleButton} onClick={() => void load()}>Odśwież</button>
         </div>
+
+        <label style={{ ...styles.field, marginBottom: "16px" }}>
+          <span style={styles.label}>Filtr</span>
+          <input
+            style={styles.input}
+            value={deviceFilter}
+            onChange={(e) => setDeviceFilter(e.target.value)}
+            placeholder="Szukaj po ID, urządzeniu, parkingu albo statusie"
+          />
+        </label>
 
         <div style={styles.tableWrapper}>
           <table style={styles.table}>
@@ -118,7 +149,7 @@ export default function IotView({ token }: Props) {
               </tr>
             </thead>
             <tbody>
-              {devices.map((d) => (
+              {visibleDevices.map((d) => (
                 <tr key={d.id}>
                   <td style={styles.td}>
                     <span style={{ ...styles.badge, fontSize: "11px" }}>#{d.id}</span>
@@ -138,7 +169,7 @@ export default function IotView({ token }: Props) {
                   <td style={styles.td}>{formatDate(d.lastSeenAt)}</td>
                 </tr>
               ))}
-              {devices.length === 0 ? (
+              {visibleDevices.length === 0 ? (
                 <tr><td style={styles.td} colSpan={5}>Brak zarejestrowanych urządzeń.</td></tr>
               ) : null}
             </tbody>
@@ -154,9 +185,16 @@ export default function IotView({ token }: Props) {
           </div>
           <form style={styles.formGrid} onSubmit={(e) => void handleRegister(e)}>
             <label style={styles.field}>
-              <span style={styles.label}>ID parkingu</span>
-              <input style={styles.input} type="number" min="1" value={parkingLotId}
-                onChange={(e) => setParkingLotId(e.target.value)} placeholder="np. 1" required />
+              <span style={styles.label}>Parking</span>
+              <select style={styles.input} value={parkingLotId}
+                onChange={(e) => setParkingLotId(e.target.value)} required>
+                <option value="">Wybierz parking</option>
+                {parkingLots.map((parking) => (
+                  <option key={parking.id} value={String(parking.id)}>
+                    #{parking.id} - {parking.name} - {parking.address} ({parking.latitude.toFixed(4)}, {parking.longitude.toFixed(4)})
+                  </option>
+                ))}
+              </select>
             </label>
             <label style={styles.field}>
               <span style={styles.label}>ID zewnętrzne urządzenia</span>
