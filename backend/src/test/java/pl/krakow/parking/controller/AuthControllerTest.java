@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.web.servlet.MockMvc;
+import java.util.Set;
 import pl.krakow.parking.config.SecurityConfig;
 import pl.krakow.parking.dto.AuthResponse;
 import pl.krakow.parking.dto.UserProfileResponse;
@@ -36,7 +37,7 @@ class AuthControllerTest {
     @Test
     void shouldRegisterUserWithValidData() throws Exception {
         given(authService.register(any())).willReturn(new AuthResponse(
-            1L, "Jan", "Kowalski", "jan@example.com", UserRole.USER, "dGVzdA=="
+            1L, "Jan", "Kowalski", "jan@example.com", Set.of(UserRole.USER), "dGVzdA=="
         ));
 
         mockMvc.perform(post("/api/auth/register")
@@ -51,7 +52,7 @@ class AuthControllerTest {
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.email").value("jan@example.com"))
-            .andExpect(jsonPath("$.role").value("USER"));
+            .andExpect(jsonPath("$.roles[0]").value("USER"));
     }
 
     @Test
@@ -103,7 +104,7 @@ class AuthControllerTest {
     @Test
     void shouldLoginWithValidCredentials() throws Exception {
         given(authService.login(any())).willReturn(new AuthResponse(
-            1L, "Jan", "Kowalski", "jan@example.com", UserRole.USER, "dGVzdA=="
+            1L, "Jan", "Kowalski", "jan@example.com", Set.of(UserRole.USER), "dGVzdA=="
         ));
 
         mockMvc.perform(post("/api/auth/login")
@@ -140,7 +141,7 @@ class AuthControllerTest {
     @Test
     void shouldReturnProfileForAuthenticatedUser() throws Exception {
         given(authService.getProfile("jan@example.com")).willReturn(new UserProfileResponse(
-            1L, "Jan", "Kowalski", "jan@example.com", UserRole.USER, UserStatus.ACTIVE
+            1L, "Jan", "Kowalski", "jan@example.com", Set.of(UserRole.USER), UserStatus.ACTIVE
         ));
 
         mockMvc.perform(get("/api/auth/me")

@@ -159,7 +159,7 @@ public class UserProfileService {
             user.getFirstName(),
             user.getLastName(),
             user.getEmail(),
-            user.getRole(),
+            user.getRoles(),
             user.getStatus()
         );
     }

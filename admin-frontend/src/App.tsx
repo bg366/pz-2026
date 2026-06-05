@@ -44,7 +44,7 @@ export default function App() {
 
     try {
       const payload = await loginAdmin(loginEmail, loginPassword);
-      if (payload.role !== "ADMIN") {
+      if (!Array.isArray(payload.roles) || !payload.roles.includes("ADMIN")) {
         throw new Error("Konto nie ma uprawnień administratora.");
       }
       const authState = payload as AuthState;

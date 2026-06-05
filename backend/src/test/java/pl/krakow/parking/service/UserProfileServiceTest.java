@@ -6,8 +6,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -116,7 +118,7 @@ class UserProfileServiceTest {
             .firstName("Jan")
             .lastName("Kierowca")
             .passwordHash("hash")
-            .role(UserRole.USER)
+            .roles(new HashSet<>(Set.of(UserRole.USER)))
             .status(UserStatus.ACTIVE)
             .build();
     }

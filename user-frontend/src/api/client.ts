@@ -64,7 +64,7 @@ export async function register(
 
 // --- Profile ---
 
-type ProfilePayload = Pick<AuthState, "email" | "firstName" | "lastName" | "role">;
+type ProfilePayload = Pick<AuthState, "email" | "firstName" | "lastName" | "roles">;
 
 export async function updateProfile(firstName: string, lastName: string): Promise<ProfilePayload> {
   const response = await fetch("/api/me", {

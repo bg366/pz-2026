@@ -112,7 +112,7 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
         email: payload.email,
         firstName: payload.firstName,
         lastName: payload.lastName,
-        role: payload.role,
+        roles: payload.roles,
         token: auth?.token ?? ""
       };
       saveAuth(updatedAuth);

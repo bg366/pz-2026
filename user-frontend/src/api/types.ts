@@ -8,7 +8,7 @@ export type AuthState = {
   email: string;
   firstName: string;
   lastName: string;
-  role: "ADMIN" | "USER";
+  roles: string[];
   token: string;
 };
 

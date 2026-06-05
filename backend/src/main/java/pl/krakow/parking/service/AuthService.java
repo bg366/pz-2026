@@ -2,6 +2,8 @@ package pl.krakow.parking.service;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.HashSet;
+import java.util.Set;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -46,7 +48,7 @@ public class AuthService {
             .lastName(request.lastName())
             .email(request.email().toLowerCase())
             .passwordHash(passwordEncoder.encode(request.password()))
-            .role(UserRole.USER)
+            .roles(new HashSet<>(Set.of(UserRole.USER)))
             .status(UserStatus.ACTIVE)
             .build();
 
@@ -83,7 +85,7 @@ public class AuthService {
             user.getFirstName(),
             user.getLastName(),
             user.getEmail(),
-            user.getRole(),
+            user.getRoles(),
             Base64.getEncoder().encodeToString((user.getEmail() + ":" + rawPassword).getBytes(StandardCharsets.UTF_8))
         );
     }
@@ -94,7 +96,7 @@ public class AuthService {
             user.getFirstName(),
             user.getLastName(),
             user.getEmail(),
-            user.getRole(),
+            user.getRoles(),
             user.getStatus()
         );
     }

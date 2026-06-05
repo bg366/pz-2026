@@ -6,7 +6,9 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -72,7 +74,7 @@ class AdminUserServiceTest {
             .lastName("User")
             .email(email)
             .passwordHash("old-hash")
-            .role(role)
+            .roles(new HashSet<>(Set.of(role)))
             .status(status)
             .build();
     }

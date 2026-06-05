@@ -1,5 +1,6 @@
 package pl.krakow.parking.dto;
 
+import java.util.Set;
 import pl.krakow.parking.model.UserRole;
 
 public record AuthResponse(
@@ -7,7 +8,7 @@ public record AuthResponse(
     String firstName,
     String lastName,
     String email,
-    UserRole role,
+    Set<UserRole> roles,
     String token
 ) {
 }

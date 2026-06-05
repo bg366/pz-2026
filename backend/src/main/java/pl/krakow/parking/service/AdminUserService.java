@@ -1,6 +1,7 @@
 package pl.krakow.parking.service;
 
 import java.security.SecureRandom;
+import java.util.HashSet;
 import java.util.List;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -61,7 +62,7 @@ public class AdminUserService {
             user.getFirstName(),
             user.getLastName(),
             user.getEmail(),
-            user.getRole(),
+            user.getRoles(),
             user.getStatus(),
             vehicles
         );
@@ -70,11 +71,11 @@ public class AdminUserService {
     @Transactional
     public AdminUserDetailsResponse updateRole(Long userId, UserRoleUpdateRequest request, String adminEmail) {
         User user = getUserById(userId);
-        if (isCurrentAdmin(user, adminEmail) && request.role() != UserRole.ADMIN) {
+        if (isCurrentAdmin(user, adminEmail) && !request.roles().contains(UserRole.ADMIN)) {
             throw new IllegalArgumentException("Administrator cannot remove own ADMIN role.");
         }
 
-        user.setRole(request.role());
+        user.setRoles(new HashSet<>(request.roles()));
         return getUser(userRepository.save(user).getId());
     }
 
@@ -111,7 +112,7 @@ public class AdminUserService {
             user.getFirstName(),
             user.getLastName(),
             user.getEmail(),
-            user.getRole(),
+            user.getRoles(),
             user.getStatus(),
             vehicles.size(),
             activeVehicleRegistration

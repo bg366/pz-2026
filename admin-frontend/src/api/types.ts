@@ -9,7 +9,7 @@ export type AuthState = {
   email: string;
   firstName: string;
   lastName: string;
-  role: UserRole;
+  roles: UserRole[];
   token: string;
 };
 
@@ -82,7 +82,7 @@ export type AdminUser = {
   firstName: string;
   lastName: string;
   email: string;
-  role: UserRole;
+  roles: UserRole[];
   status: UserStatus;
   vehicleCount: number;
   activeVehicleRegistration: string | null;

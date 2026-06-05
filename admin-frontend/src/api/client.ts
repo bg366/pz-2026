@@ -197,11 +197,11 @@ export async function getUserDetails(id: number, token: string): Promise<AdminUs
   return handleResponse<AdminUserDetails>(response);
 }
 
-export async function updateUserRole(id: number, role: UserRole, token: string): Promise<AdminUserDetails> {
+export async function updateUserRole(id: number, roles: UserRole[], token: string): Promise<AdminUserDetails> {
   const response = await fetch(`/api/admin/users/${id}/role`, {
     method: "PATCH",
     headers: makeHeaders(token, { "Content-Type": "application/json" }),
-    body: JSON.stringify({ role })
+    body: JSON.stringify({ roles })
   });
   return handleResponse<AdminUserDetails>(response);
 }
@@ -232,7 +232,7 @@ export async function getCurrentOccupancy(token: string): Promise<OccupancyRepor
 
 // --- Auth ---
 
-export async function loginAdmin(email: string, password: string): Promise<{ email: string; firstName: string; lastName: string; role: string; token: string }> {
+export async function loginAdmin(email: string, password: string): Promise<{ email: string; firstName: string; lastName: string; roles: string[]; token: string }> {
   const response = await fetch("/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

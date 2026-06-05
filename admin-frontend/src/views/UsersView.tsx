@@ -32,9 +32,9 @@ export default function UsersView({ token }: Props) {
 
   useEffect(() => { void loadUsers(); }, []);
 
-  async function handleRoleChange(id: number, role: UserRole) {
+  async function handleRoleChange(id: number, roles: UserRole[]) {
     try {
-      await updateUserRole(id, role, token);
+      await updateUserRole(id, roles, token);
       showToast("Rola użytkownika zmieniona.");
       await loadUsers();
       if (selectedUser?.id === id) await loadUserDetails(id);
@@ -103,12 +103,21 @@ export default function UsersView({ token }: Props) {
                   <div style={styles.helper}>{user.email}</div>
                 </td>
                 <td style={styles.td}>
-                  <select style={{ ...styles.input, fontSize: "13px" }} value={user.role}
-                    onChange={(e) => void handleRoleChange(user.id, e.target.value as UserRole)}>
-                    <option value="ADMIN">Administrator</option>
-                    <option value="PARKING_OWNER">Właściciel parkingu</option>
-                    <option value="USER">Użytkownik</option>
-                  </select>
+                  {(["ADMIN", "PARKING_OWNER", "USER"] as UserRole[]).map((role) => (
+                    <label key={role} style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px", fontSize: "13px", cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={user.roles.includes(role)}
+                        onChange={(e) => {
+                          const newRoles = e.target.checked
+                            ? [...user.roles, role]
+                            : user.roles.filter((r) => r !== role);
+                          if (newRoles.length > 0) void handleRoleChange(user.id, newRoles);
+                        }}
+                      />
+                      {pl(PL.userRole, role)}
+                    </label>
+                  ))}
                 </td>
                 <td style={styles.td}>
                   <select style={{ ...styles.input, fontSize: "13px" }} value={user.status}
@@ -147,7 +156,7 @@ export default function UsersView({ token }: Props) {
               <strong style={{ fontSize: "16px" }}>{selectedUser.firstName} {selectedUser.lastName}</strong>
               <div style={styles.helper}>
                 ID: #{selectedUser.id} &bull; {selectedUser.email} &bull;{" "}
-                {pl(PL.userRole, selectedUser.role)} &bull; {pl(PL.userStatus, selectedUser.status)}
+                {selectedUser.roles.map((r) => pl(PL.userRole, r)).join(", ")} &bull; {pl(PL.userStatus, selectedUser.status)}
               </div>
             </div>
             <button type="button" style={styles.subtleButton} onClick={() => setSelectedUser(null)}>Zamknij</button>
