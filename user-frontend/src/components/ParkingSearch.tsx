@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
+import type { UserVehicle } from "./UserAccount";
 
 type FuelType = "" | "PETROL" | "DIESEL" | "LPG" | "HYBRID" | "ELECTRIC";
 type EmissionStandard =
@@ -36,12 +37,28 @@ const initialState = {
   emissionStandard: "" as EmissionStandard
 };
 
-export default function ParkingSearch() {
+type ParkingSearchProps = {
+  activeVehicle: UserVehicle | null;
+};
+
+export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
   const [form, setForm] = useState(initialState);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+
+  useEffect(() => {
+    if (!activeVehicle) {
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      fuelType: activeVehicle.fuelType,
+      emissionStandard: activeVehicle.emissionStandard
+    }));
+  }, [activeVehicle]);
 
   const activeFilters = useMemo(() => {
     return [
@@ -127,6 +144,13 @@ export default function ParkingSearch() {
       </div>
 
       <form className="card form-grid form-grid--three" onSubmit={handleSubmit}>
+        {activeVehicle ? (
+          <div className="feedback feedback--empty form-grid__wide">
+            Aktywny pojazd: {activeVehicle.brand} {activeVehicle.model}, {activeVehicle.registrationNumber}.
+            Filtry SCT zostaly ustawione automatycznie.
+          </div>
+        ) : null}
+
         <label className="field">
           <span>Latitude</span>
           <input

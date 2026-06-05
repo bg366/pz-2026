@@ -75,13 +75,12 @@ public class DataSeeder implements CommandLineRunner {
         seedZonesAndPrices();
         seedParkingSpecificPrices();
 
-        if (parkingLotRepository.count() > 0) {
-            return;
+        if (parkingLotRepository.count() == 0) {
+            seedParkingLots();
+            seedParkingSpecificPrices();
+            seedSctRules();
         }
 
-        seedParkingLots();
-        seedParkingSpecificPrices();
-        seedSctRules();
         seedVehicles();
     }
 
@@ -344,11 +343,93 @@ public class DataSeeder implements CommandLineRunner {
     }
 
     private void seedVehicles() {
-        vehicleRepository.saveAll(List.of(
-            Vehicle.builder().registrationNumber("KR1234A").fuelType(FuelType.DIESEL).emissionStandard(EmissionStandard.EURO_3).vehicleType("CAR").build(),
-            Vehicle.builder().registrationNumber("KR5678B").fuelType(FuelType.PETROL).emissionStandard(EmissionStandard.EURO_5).vehicleType("CAR").build(),
-            Vehicle.builder().registrationNumber("KR9EV22").fuelType(FuelType.ELECTRIC).emissionStandard(EmissionStandard.ELECTRIC).vehicleType("CAR").build()
-        ));
+        ensurePublicVehicle("KR1234A", "Volkswagen", "Passat", FuelType.DIESEL, EmissionStandard.EURO_3, 2011);
+        ensurePublicVehicle("KR5678B", "Toyota", "Corolla", FuelType.PETROL, EmissionStandard.EURO_5, 2018);
+        ensurePublicVehicle("KR9EV22", "Tesla", "Model 3", FuelType.ELECTRIC, EmissionStandard.ELECTRIC, 2022);
+
+        User testUser = userRepository.findByEmailIgnoreCase("user@krakow-parking.local").orElse(null);
+        if (testUser != null) {
+            ensureUserVehicle(
+                testUser,
+                "KRA1111",
+                "Skoda",
+                "Octavia",
+                FuelType.PETROL,
+                EmissionStandard.EURO_6,
+                2020,
+                true
+            );
+            ensureUserVehicle(
+                testUser,
+                "KRA2222",
+                "Opel",
+                "Astra",
+                FuelType.DIESEL,
+                EmissionStandard.EURO_4,
+                2014,
+                false
+            );
+        }
+    }
+
+    private void ensurePublicVehicle(
+        String registrationNumber,
+        String brand,
+        String model,
+        FuelType fuelType,
+        EmissionStandard emissionStandard,
+        int productionYear
+    ) {
+        if (vehicleRepository.findByRegistrationNumberIgnoreCase(registrationNumber).isPresent()) {
+            return;
+        }
+
+        vehicleRepository.save(Vehicle.builder()
+            .registrationNumber(registrationNumber)
+            .brand(brand)
+            .model(model)
+            .fuelType(fuelType)
+            .emissionStandard(emissionStandard)
+            .productionYear(productionYear)
+            .vehicleType("CAR")
+            .sctCompliant(sctVerificationAllowed(fuelType, emissionStandard))
+            .active(false)
+            .build());
+    }
+
+    private void ensureUserVehicle(
+        User user,
+        String registrationNumber,
+        String brand,
+        String model,
+        FuelType fuelType,
+        EmissionStandard emissionStandard,
+        int productionYear,
+        boolean active
+    ) {
+        if (vehicleRepository.existsByUserEmailIgnoreCaseAndRegistrationNumberIgnoreCase(
+            user.getEmail(),
+            registrationNumber
+        )) {
+            return;
+        }
+
+        vehicleRepository.save(Vehicle.builder()
+            .user(user)
+            .registrationNumber(registrationNumber)
+            .brand(brand)
+            .model(model)
+            .fuelType(fuelType)
+            .emissionStandard(emissionStandard)
+            .productionYear(productionYear)
+            .vehicleType("CAR")
+            .sctCompliant(sctVerificationAllowed(fuelType, emissionStandard))
+            .active(active)
+            .build());
+    }
+
+    private boolean sctVerificationAllowed(FuelType fuelType, EmissionStandard emissionStandard) {
+        return fuelType == FuelType.ELECTRIC || emissionStandard.isAtLeast(EmissionStandard.EURO_5);
     }
 
     private org.locationtech.jts.geom.Point createPoint(double longitude, double latitude) {

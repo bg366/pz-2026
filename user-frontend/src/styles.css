@@ -142,6 +142,10 @@ select {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.form-grid__wide {
+  grid-column: 1 / -1;
+}
+
 .field {
   display: grid;
   gap: 8px;

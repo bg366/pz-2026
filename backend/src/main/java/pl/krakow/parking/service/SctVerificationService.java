@@ -42,7 +42,9 @@ public class SctVerificationService {
         EmissionStandard emissionStandard = request.emissionStandard();
 
         if (request.registrationNumber() != null && (!hasFuelAndEmission(fuelType, emissionStandard))) {
-            Vehicle vehicle = vehicleRepository.findByRegistrationNumberIgnoreCase(request.registrationNumber())
+            Vehicle vehicle = vehicleRepository.findRegistrationMatches(request.registrationNumber())
+                .stream()
+                .findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException(
                     "Vehicle with registration number %s was not found.".formatted(request.registrationNumber())
                 ));

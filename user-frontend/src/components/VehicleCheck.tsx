@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import type { UserVehicle } from "./UserAccount";
 
 type FuelType = "" | "PETROL" | "DIESEL" | "LPG" | "HYBRID" | "ELECTRIC";
 type EmissionStandard =
@@ -18,7 +19,11 @@ type VehicleCheckResponse = {
   reason: string;
 };
 
-export default function VehicleCheck() {
+type VehicleCheckProps = {
+  activeVehicle: UserVehicle | null;
+};
+
+export default function VehicleCheck({ activeVehicle }: VehicleCheckProps) {
   const [registrationNumber, setRegistrationNumber] = useState("");
   const [fuelType, setFuelType] = useState<FuelType>("");
   const [emissionStandard, setEmissionStandard] = useState<EmissionStandard>("");
@@ -26,6 +31,16 @@ export default function VehicleCheck() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<VehicleCheckResponse | null>(null);
+
+  useEffect(() => {
+    if (!activeVehicle) {
+      return;
+    }
+
+    setRegistrationNumber(activeVehicle.registrationNumber);
+    setFuelType(activeVehicle.fuelType);
+    setEmissionStandard(activeVehicle.emissionStandard);
+  }, [activeVehicle]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -70,6 +85,12 @@ export default function VehicleCheck() {
       </div>
 
       <form className="card form-grid" onSubmit={handleSubmit}>
+        {activeVehicle ? (
+          <div className="feedback feedback--empty">
+            Aktywny pojazd: {activeVehicle.brand} {activeVehicle.model}, {activeVehicle.registrationNumber}.
+          </div>
+        ) : null}
+
         <label className="field">
           <span>Numer rejestracyjny</span>
           <input
