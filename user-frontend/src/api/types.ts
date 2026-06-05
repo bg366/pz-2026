@@ -83,3 +83,14 @@ export type ReservationRequest = {
   startsAt: string;
   endsAt: string;
 };
+
+export type NotificationType = "RESERVATION_EXPIRING" | "RESERVATION_EXPIRED";
+
+export type AppNotification = {
+  id: number;
+  type: NotificationType;
+  message: string;
+  read: boolean;
+  reservationId: number | null;
+  createdAt: string;
+};
