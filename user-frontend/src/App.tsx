@@ -5,8 +5,8 @@ import Reservations from "./components/Reservations";
 import ParkingSessions from "./components/ParkingSessions";
 import Notifications from "./components/Notifications";
 import OwnerPanel from "./components/OwnerPanel";
-import { readStoredAuth, getNotifications } from "./api/client";
-import type { AuthState, UserVehicle } from "./api/types";
+import { readStoredAuth, getNotifications, getParkingSessions } from "./api/client";
+import type { AuthState, UserVehicle, ParkingSession } from "./api/types";
 import VehicleCheck from "./components/VehicleCheck";
 
 type View = "parking" | "vehicle" | "profile" | "reservations" | "sessions" | "notifications" | "owner";
@@ -34,6 +34,7 @@ export default function App() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [reservationParkingLotId, setReservationParkingLotId] = useState<number | null>(null);
   const [sessionParkingLotId, setSessionParkingLotId] = useState<number | null>(null);
+  const [activeSessions, setActiveSessions] = useState<ParkingSession[]>([]);
 
   function navigate(nextView: View) {
     setView(nextView);
@@ -57,6 +58,7 @@ export default function App() {
   useEffect(() => {
     if (!auth) {
       setUnreadCount(0);
+      setActiveSessions([]);
       return;
     }
 
@@ -69,10 +71,27 @@ export default function App() {
       }
     }
 
+    async function loadSessions() {
+      try {
+        const all = await getParkingSessions();
+        setActiveSessions(all.filter((s) => s.status === "ACTIVE" || s.status === "PAYMENT_PENDING"));
+      } catch {
+        // ignore
+      }
+    }
+
     void loadUnread();
+    void loadSessions();
     const interval = setInterval(() => void loadUnread(), 60 * 1000);
     return () => clearInterval(interval);
   }, [auth]);
+
+  function refreshSessions() {
+    if (!auth) return;
+    getParkingSessions()
+      .then((all) => setActiveSessions(all.filter((s) => s.status === "ACTIVE" || s.status === "PAYMENT_PENDING")))
+      .catch(() => {});
+  }
 
   return (
     <div className="app-shell">
@@ -90,71 +109,31 @@ export default function App() {
 
       <main className="page">
         <nav className="tabs" aria-label="Nawigacja aplikacji">
-          <button
-            type="button"
-            className={view === "parking" ? "tab tab--active" : "tab"}
-            onClick={() => navigate("parking")}
-          >
+          <button type="button" className={view === "parking" ? "tab tab--active" : "tab"} onClick={() => navigate("parking")}>
             Wyszukiwarka
           </button>
-          <button
-            type="button"
-            className={view === "vehicle" ? "tab tab--active" : "tab"}
-            onClick={() => navigate("vehicle")}
-          >
+          <button type="button" className={view === "vehicle" ? "tab tab--active" : "tab"} onClick={() => navigate("vehicle")}>
             Sprawdz auto
           </button>
-          <button
-            type="button"
-            className={view === "profile" ? "tab tab--active" : "tab"}
-            onClick={() => navigate("profile")}
-          >
+          <button type="button" className={view === "profile" ? "tab tab--active" : "tab"} onClick={() => navigate("profile")}>
             Profil
           </button>
-          <button
-            type="button"
-            className={view === "reservations" ? "tab tab--active" : "tab"}
-            onClick={() => navigate("reservations")}
-          >
+          <button type="button" className={view === "reservations" ? "tab tab--active" : "tab"} onClick={() => navigate("reservations")}>
             Rezerwacje
           </button>
-          <button
-            type="button"
-            className={view === "sessions" ? "tab tab--active" : "tab"}
-            onClick={() => navigate("sessions")}
-          >
+          <button type="button" className={view === "sessions" ? "tab tab--active" : "tab"} onClick={() => navigate("sessions")}>
             Sesje
           </button>
-          <button
-            type="button"
-            className={view === "notifications" ? "tab tab--active" : "tab"}
-            onClick={() => { navigate("notifications"); setUnreadCount(0); }}
-            style={{ position: "relative" }}
-          >
+          <button type="button" className={view === "notifications" ? "tab tab--active" : "tab"} onClick={() => { navigate("notifications"); setUnreadCount(0); }} style={{ position: "relative" }}>
             Powiadomienia
             {unreadCount > 0 ? (
-              <span style={{
-                position: "absolute",
-                top: "-6px",
-                right: "-6px",
-                background: "#ef4444",
-                color: "#fff",
-                borderRadius: "999px",
-                fontSize: "0.65rem",
-                fontWeight: 700,
-                padding: "1px 5px",
-                lineHeight: "1.4"
-              }}>
+              <span style={{ position: "absolute", top: "-6px", right: "-6px", background: "#ef4444", color: "#fff", borderRadius: "999px", fontSize: "0.65rem", fontWeight: 700, padding: "1px 5px", lineHeight: "1.4" }}>
                 {unreadCount}
               </span>
             ) : null}
           </button>
           {auth?.roles.includes("PARKING_OWNER") ? (
-            <button
-              type="button"
-              className={view === "owner" ? "tab tab--active" : "tab"}
-              onClick={() => navigate("owner")}
-            >
+            <button type="button" className={view === "owner" ? "tab tab--active" : "tab"} onClick={() => navigate("owner")}>
               Moje parkingi
             </button>
           ) : null}
@@ -163,7 +142,10 @@ export default function App() {
         <section className="panel">
           {view === "parking" ? (
             <ParkingSearch
+              auth={auth}
               activeVehicle={activeVehicle}
+              activeSessions={activeSessions}
+              onSessionsChange={refreshSessions}
               onReserve={(parkingLotId) => {
                 setReservationParkingLotId(parkingLotId);
                 navigate("reservations");
@@ -184,11 +166,7 @@ export default function App() {
           ) : view === "owner" ? (
             <OwnerPanel auth={auth} />
           ) : (
-            <UserAccount
-              auth={auth}
-              onAuthChange={setAuth}
-              onActiveVehicleChange={setActiveVehicle}
-            />
+            <UserAccount auth={auth} onAuthChange={setAuth} onActiveVehicleChange={setActiveVehicle} />
           )}
         </section>
       </main>
