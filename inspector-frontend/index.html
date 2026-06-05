@@ -154,20 +154,22 @@
     }
 
     function renderCheckResult(data) {
+      const hasExpired = data.activeSessions.some(s => s.expired);
       const ok = data.hasPaidSession || data.hasActiveReservation;
       const partial = !ok && (data.activeSessions.length > 0 || data.activeReservations.length > 0);
-      let cls = ok ? 'result--ok' : partial ? 'result--warn' : 'result--bad';
-      let icon = ok ? '✓' : partial ? '⚠' : '✗';
-      let title = ok ? 'OPŁACONY' : partial ? 'OCZEKUJE NA PŁATNOŚĆ' : 'BRAK OPŁATY';
+      let cls = ok ? 'result--ok' : (partial || hasExpired) ? 'result--warn' : 'result--bad';
+      let icon = ok ? '✓' : (partial || hasExpired) ? '⚠' : '✗';
+      let title = ok ? 'OPŁACONY' : hasExpired ? 'CZAS MINĄŁ' : partial ? 'OCZEKUJE NA PŁATNOŚĆ' : 'BRAK OPŁATY';
 
       let inner = `<div class="result__icon">${icon}</div><div class="result__title">${title}</div><div class="result__plate">${data.registrationNumber}</div>`;
       for (const s of data.activeSessions) {
-        inner += `<div class="detail-card"><dl><dt>Parking</dt><dd>${s.parkingLotName}</dd><dt>Status</dt><dd>${statusLabel(s.status)}</dd><dt>Wjazd</dt><dd>${formatDateTime(s.startedAt)}</dd></dl></div>`;
+        const expiredNote = s.expired ? ' <span style="color:#f87171">(CZAS MINĄŁ)</span>' : '';
+        inner += `<div class="detail-card"><dl><dt>Parking</dt><dd>${s.parkingLotName}</dd><dt>Status</dt><dd>${statusLabel(s.status)}${expiredNote}</dd><dt>Wjazd</dt><dd>${formatDateTime(s.startedAt)}</dd>${s.endedAt ? `<dt>Ważna do</dt><dd>${formatDateTime(s.endedAt)}${expiredNote}</dd>` : ''}</dl></div>`;
       }
       for (const r of data.activeReservations) {
         inner += `<div class="detail-card"><dl><dt>Parking</dt><dd>${r.parkingLotName}</dd><dt>Status</dt><dd>${statusLabel(r.status)}</dd><dt>Ważna do</dt><dd>${formatDateTime(r.endsAt)}</dd></dl></div>`;
       }
-      if (!ok && !partial) inner += `<p style="color:#94a3b8;font-size:.85rem;margin-top:8px">Brak opłaconego pobytu ani rezerwacji.</p>`;
+      if (!ok && !partial && !hasExpired) inner += `<p style="color:#94a3b8;font-size:.85rem;margin-top:8px">Brak opłaconego pobytu ani rezerwacji.</p>`;
       inner += `<div class="timestamp">Sprawdzono: ${new Date().toLocaleString('pl-PL')}</div>`;
       inner += `<button class="reset-btn" onclick="document.getElementById('result-check').innerHTML='';document.getElementById('plate-check').value=''">Sprawdź inny</button>`;
       document.getElementById('result-check').innerHTML = `<div class="result ${cls}">${inner}</div>`;

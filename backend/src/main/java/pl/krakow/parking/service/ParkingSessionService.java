@@ -1,4 +1,4 @@
-package pl.krakow.parking.service;
+﻿package pl.krakow.parking.service;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -55,7 +55,7 @@ public class ParkingSessionService {
             .orElseThrow(() -> new ResourceNotFoundException("Parking not found: " + request.parkingLotId()));
 
         if (lot.getStatus() != ParkingLotStatus.ACTIVE) {
-            throw new IllegalArgumentException("Parking jest niedostępny.");
+            throw new IllegalArgumentException("Parking jest niedostepny.");
         }
 
         User user = userRepository.findByEmailIgnoreCase(email)
@@ -64,24 +64,47 @@ public class ParkingSessionService {
         String plate = request.registrationNumber().toUpperCase().replaceAll("\\s+", "");
 
         boolean hasActive = sessionRepository.findFirstByRegistrationNumberIgnoreCaseAndStatusIn(
-            plate, List.of(ParkingSessionStatus.ACTIVE)
+            plate, List.of(ParkingSessionStatus.ACTIVE, ParkingSessionStatus.PAYMENT_PENDING)
         ).isPresent();
         if (hasActive) {
-            throw new IllegalArgumentException("Istnieje już aktywna sesja parkingowa dla rejestracji " + plate + ".");
+            throw new IllegalArgumentException("Istnieje juz aktywna sesja parkingowa dla rejestracji " + plate + ".");
         }
 
-        if (lot.getAccessType() == ParkingAccessType.BARRIER) {
-            int freeSpots = lot.getTotalSpots() - lot.getOccupiedSpots();
-            if (freeSpots <= 0) {
-                throw new IllegalArgumentException("Parking jest pełny. Szlaban pozostaje zamknięty.");
+        LocalDateTime now = LocalDateTime.now();
+
+        if (lot.getAccessType() == ParkingAccessType.OPEN) {
+            if (request.plannedEndAt() == null) {
+                throw new IllegalArgumentException("Dla parkingow otwartych wymagane jest podanie godziny wyjazdu.");
             }
+            if (!request.plannedEndAt().isAfter(now)) {
+                throw new IllegalArgumentException("Godzina wyjazdu musi byc w przyszlosci.");
+            }
+            long minutes = Math.max(Duration.between(now, request.plannedEndAt()).toMinutes(), 1);
+            BigDecimal amount = calculateFeeSafely(lot.getId(), (int) minutes);
+            ParkingSession openSession = ParkingSession.builder()
+                .parkingLot(lot)
+                .user(user)
+                .registrationNumber(plate)
+                .startedAt(now)
+                .endedAt(request.plannedEndAt())
+                .status(ParkingSessionStatus.PAYMENT_PENDING)
+                .amount(amount)
+                .currency("PLN")
+                .paymentToken(UUID.randomUUID().toString().replace("-", ""))
+                .build();
+            return toResponse(sessionRepository.save(openSession));
+        }
+
+        int freeSpots = lot.getTotalSpots() - lot.getOccupiedSpots();
+        if (freeSpots <= 0) {
+            throw new IllegalArgumentException("Parking jest pelny. Szlaban pozostaje zamkniety.");
         }
 
         ParkingSession session = ParkingSession.builder()
             .parkingLot(lot)
             .user(user)
             .registrationNumber(plate)
-            .startedAt(LocalDateTime.now())
+            .startedAt(now)
             .status(ParkingSessionStatus.ACTIVE)
             .currency("PLN")
             .build();
@@ -124,7 +147,7 @@ public class ParkingSessionService {
         }
 
         if (session.getStatus() != ParkingSessionStatus.PAYMENT_PENDING) {
-            throw new IllegalArgumentException("Sesja nie oczekuje na płatność.");
+            throw new IllegalArgumentException("Sesja nie oczekuje na platnosc.");
         }
 
         session.setStatus(ParkingSessionStatus.PAID);
@@ -140,8 +163,9 @@ public class ParkingSessionService {
             throw new AccessDeniedException("This session does not belong to you.");
         }
 
-        if (session.getStatus() != ParkingSessionStatus.ACTIVE) {
-            throw new IllegalArgumentException("Można anulować tylko aktywną sesję.");
+        if (session.getStatus() != ParkingSessionStatus.ACTIVE
+            && session.getStatus() != ParkingSessionStatus.PAYMENT_PENDING) {
+            throw new IllegalArgumentException("Mozna anulowac tylko aktywna lub oczekujaca sesje.");
         }
 
         session.setStatus(ParkingSessionStatus.CANCELLED);

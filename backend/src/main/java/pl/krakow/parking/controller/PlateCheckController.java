@@ -1,4 +1,4 @@
-package pl.krakow.parking.controller;
+﻿package pl.krakow.parking.controller;
 
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
@@ -52,8 +52,7 @@ public class PlateCheckController {
     public ResponseEntity<CameraEntryResponse> recordEntry(@RequestBody @Valid CameraEntryRequest request) {
         String plate = request.registrationNumber().toUpperCase().replaceAll("\\s+", "");
 
-        ParkingLot lot = parkingLotRepository.findById(request.parkingLotId())
-            .orElse(null);
+        ParkingLot lot = parkingLotRepository.findById(request.parkingLotId()).orElse(null);
         if (lot == null) {
             return ResponseEntity.ok(new CameraEntryResponse(false, "Nie znaleziono parkingu.", plate, null));
         }
@@ -64,14 +63,14 @@ public class PlateCheckController {
 
         int freeSpots = lot.getTotalSpots() - lot.getOccupiedSpots();
         if (freeSpots <= 0) {
-            return ResponseEntity.ok(new CameraEntryResponse(false, "Parking pełny. Szlaban pozostaje zamknięty.", plate, null));
+            return ResponseEntity.ok(new CameraEntryResponse(false, "Parking pelny. Szlaban pozostaje zamkniety.", plate, null));
         }
 
         boolean hasActive = sessionRepository.findFirstByRegistrationNumberIgnoreCaseAndStatusIn(
             plate, List.of(ParkingSessionStatus.ACTIVE)
         ).isPresent();
         if (hasActive) {
-            return ResponseEntity.ok(new CameraEntryResponse(false, "Pojazd już jest na parkingu.", plate, null));
+            return ResponseEntity.ok(new CameraEntryResponse(false, "Pojazd juz jest na parkingu.", plate, null));
         }
 
         ParkingSession session = ParkingSession.builder()
@@ -83,12 +82,13 @@ public class PlateCheckController {
             .build();
         ParkingSession saved = sessionRepository.save(session);
 
-        return ResponseEntity.ok(new CameraEntryResponse(true, "Wjazd zarejestrowany. Szlaban otwiera się.", plate, saved.getId()));
+        return ResponseEntity.ok(new CameraEntryResponse(true, "Wjazd zarejestrowany. Szlaban otwiera sie.", plate, saved.getId()));
     }
 
     @GetMapping("/{plate}")
     public PlateCheckResponse check(@PathVariable String plate) {
         String normalizedPlate = plate.toUpperCase().replaceAll("\\s+", "");
+        LocalDateTime now = LocalDateTime.now();
 
         List<PlateCheckResponse.ActiveSession> sessions = sessionRepository
             .findByRegistrationNumberIgnoreCaseAndStatusIn(
@@ -96,17 +96,23 @@ public class PlateCheckController {
                 List.of(ParkingSessionStatus.ACTIVE, ParkingSessionStatus.PAID, ParkingSessionStatus.PAYMENT_PENDING)
             )
             .stream()
-            .map(s -> new PlateCheckResponse.ActiveSession(
-                s.getId(),
-                s.getParkingLot().getName(),
-                s.getStartedAt(),
-                s.getEndedAt(),
-                s.getStatus().name()
-            ))
+            .map(s -> {
+                boolean expired = s.getStatus() == ParkingSessionStatus.PAID
+                    && s.getEndedAt() != null
+                    && s.getEndedAt().isBefore(now);
+                return new PlateCheckResponse.ActiveSession(
+                    s.getId(),
+                    s.getParkingLot().getName(),
+                    s.getStartedAt(),
+                    s.getEndedAt(),
+                    s.getStatus().name(),
+                    expired
+                );
+            })
             .toList();
 
         List<PlateCheckResponse.ActiveReservation> reservations = reservationRepository
-            .findCurrentlyActiveByVehiclePlate(normalizedPlate, ReservationStatus.CONFIRMED, LocalDateTime.now())
+            .findCurrentlyActiveByVehiclePlate(normalizedPlate, ReservationStatus.CONFIRMED, now)
             .stream()
             .map(r -> new PlateCheckResponse.ActiveReservation(
                 r.getId(),
@@ -117,8 +123,11 @@ public class PlateCheckController {
             ))
             .toList();
 
-        boolean hasPaidSession = sessions.stream()
-            .anyMatch(s -> "PAID".equals(s.status()) || "ACTIVE".equals(s.status()));
+        boolean hasPaidSession = sessions.stream().anyMatch(s -> {
+            if ("ACTIVE".equals(s.status())) return true;
+            if ("PAID".equals(s.status())) return !s.expired();
+            return false;
+        });
         boolean hasActiveReservation = !reservations.isEmpty();
 
         return new PlateCheckResponse(
@@ -153,7 +162,7 @@ public class PlateCheckController {
         sessionRepository.save(session);
 
         return ResponseEntity.ok(new ExitPaymentResponse(
-            true, "Płatność przygotowana.",
+            true, "Platnosc przygotowana.",
             session.getPaymentToken(), amount, session.getCurrency()
         ));
     }
@@ -162,11 +171,11 @@ public class PlateCheckController {
     public ResponseEntity<ExitPaymentResponse> confirmExitPayment(@PathVariable String token) {
         ParkingSession session = sessionRepository.findByPaymentToken(token).orElse(null);
         if (session == null || session.getStatus() != ParkingSessionStatus.PAYMENT_PENDING) {
-            return ResponseEntity.ok(new ExitPaymentResponse(false, "Nieprawidłowy token płatności.", null, null, null));
+            return ResponseEntity.ok(new ExitPaymentResponse(false, "Nieprawidlowy token platnosci.", null, null, null));
         }
         session.setStatus(ParkingSessionStatus.PAID);
         sessionRepository.save(session);
-        return ResponseEntity.ok(new ExitPaymentResponse(true, "Płatność potwierdzona. Możesz wyjechać.", null, session.getAmount(), session.getCurrency()));
+        return ResponseEntity.ok(new ExitPaymentResponse(true, "Platnosc potwierdzona. Mozesz wyjechac.", null, session.getAmount(), session.getCurrency()));
     }
 
     private BigDecimal calculateFeeSafely(Long parkingLotId, int minutes) {

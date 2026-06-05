@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import {
   getParkingSessions,
@@ -42,8 +42,8 @@ function durationLabel(startedAt: string, endedAt: string | null): string {
 function statusLabel(status: ParkingSession["status"]): string {
   switch (status) {
     case "ACTIVE": return "Aktywna";
-    case "PAYMENT_PENDING": return "Oczekuje na płatność";
-    case "PAID": return "Opłacona";
+    case "PAYMENT_PENDING": return "Oczekuje na platnosc";
+    case "PAID": return "Oplacona";
     case "CANCELLED": return "Anulowana";
   }
 }
@@ -57,6 +57,23 @@ function statusClass(status: ParkingSession["status"]): string {
   }
 }
 
+function minDateTimeLocal(): string {
+  const d = new Date(Date.now() + 5 * 60000);
+  return d.toISOString().slice(0, 16);
+}
+
+function defaultEndDateTime(): string {
+  const d = new Date(Date.now() + 60 * 60000);
+  d.setMinutes(0, 0, 0);
+  if (d.getTime() < Date.now() + 5 * 60000) d.setTime(Date.now() + 65 * 60000);
+  return d.toISOString().slice(0, 16);
+}
+
+function billedHours(endAtLocal: string): number {
+  const minutes = (new Date(endAtLocal).getTime() - Date.now()) / 60000;
+  return Math.ceil(Math.max(minutes, 1) / 60);
+}
+
 export default function ParkingSessions({ auth, initialParkingId }: Props) {
   const [sessions, setSessions] = useState<ParkingSession[]>([]);
   const [parkingOptions, setParkingOptions] = useState<ParkingSearchResult[]>([]);
@@ -64,12 +81,17 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
   const [status, setStatus] = useState<string | null>(null);
   const [parkingLotId, setParkingLotId] = useState("");
   const [plate, setPlate] = useState("");
+  const [plannedEndAt, setPlannedEndAt] = useState(defaultEndDateTime);
   const [submitting, setSubmitting] = useState(false);
   const [paymentStep, setPaymentStep] = useState<PaymentStep | null>(null);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [cardNumber, setCardNumber] = useState("4242 4242 4242 4242");
   const [cardExpiry, setCardExpiry] = useState("12/26");
   const [cardCvc, setCardCvc] = useState("123");
+
+  const selectedParking = parkingOptions.find((p) => String(p.id) === parkingLotId) ?? null;
+  const isOpen = selectedParking?.accessType === "OPEN";
+  const hours = isOpen && plannedEndAt ? billedHours(plannedEndAt) : null;
 
   useEffect(() => {
     getAllActiveParkings()
@@ -97,7 +119,7 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
         });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd ładowania sesji.");
+      setError(err instanceof Error ? err.message : "Blad ladowania sesji.");
     }
   }
 
@@ -109,13 +131,29 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
     setStatus(null);
     setSubmitting(true);
     try {
-      await startParkingSession({ parkingLotId: Number(parkingLotId), registrationNumber: plate.trim() });
+      const req = {
+        parkingLotId: Number(parkingLotId),
+        registrationNumber: plate.trim(),
+        ...(isOpen && plannedEndAt ? { plannedEndAt: new Date(plannedEndAt).toISOString().replace("Z", "") } : {})
+      };
+      const newSession = await startParkingSession(req);
       setParkingLotId("");
       setPlate("");
-      setStatus("Sesja parkingowa rozpoczęta. Pamiętaj o opłaceniu przed wyjazdem.");
+      setPlannedEndAt(defaultEndDateTime());
+      if (newSession.status === "PAYMENT_PENDING" && newSession.paymentToken) {
+        setPaymentStep({
+          sessionId: newSession.id,
+          parkingName: newSession.parkingLotName,
+          amount: newSession.amount,
+          currency: newSession.currency,
+          token: newSession.paymentToken
+        });
+      } else {
+        setStatus("Sesja parkingowa rozpoczeta. Pamietaj o oplaceniu przed wyjazdem.");
+      }
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nie udało się rozpocząć sesji.");
+      setError(err instanceof Error ? err.message : "Nie udalo sie rozpoczac sesji.");
     } finally {
       setSubmitting(false);
     }
@@ -136,7 +174,7 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
       }
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd zamykania sesji.");
+      setError(err instanceof Error ? err.message : "Blad zamykania sesji.");
     }
   }
 
@@ -147,10 +185,10 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
     try {
       await confirmSessionPayment(paymentStep.token);
       setPaymentStep(null);
-      setStatus("Płatność potwierdzona! Możesz opuścić parking.");
+      setStatus("Platnosc potwierdzona! Mozesz opuscic parking.");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd potwierdzania płatności.");
+      setError(err instanceof Error ? err.message : "Blad potwierdzania platnosci.");
     } finally {
       setPaymentProcessing(false);
     }
@@ -163,14 +201,14 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
       setStatus("Sesja anulowana.");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd anulowania sesji.");
+      setError(err instanceof Error ? err.message : "Blad anulowania sesji.");
     }
   }
 
   if (!auth) {
     return (
       <div className="feedback feedback--empty">
-        Zaloguj się, aby zarządzać sesjami parkingowymi. Przejdź do zakładki <strong>Profil</strong>.
+        Zaloguj sie, aby zarzadzac sesjami parkingowymi. Przejdz do zakladki <strong>Profil</strong>.
       </div>
     );
   }
@@ -179,13 +217,12 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
     <div className="stack">
       <div className="section-heading">
         <h2>Sesje parkingowe</h2>
-        <p>Wjedź bez rezerwacji i opłać pobyt przed wyjazdem. Działa dla parkingów otwartych i z szlabanem.</p>
+        <p>Wjedz bez rezerwacji i oplac pobyt przed wyjazdem. Dziala dla parkingów otwartych i z szlabanem.</p>
       </div>
 
-      {/* ── Krok płatności ── */}
       {paymentStep ? (
         <div className="card stack" style={{ border: "2px solid #0891b2" }}>
-          <h3 style={{ margin: 0, color: "#0e7490" }}>Opłata za parking</h3>
+          <h3 style={{ margin: 0, color: "#0e7490" }}>Oplata za parking</h3>
           <p style={{ margin: 0, color: "#4b5563", fontSize: "14px" }}>
             Parking: <strong>{paymentStep.parkingName}</strong>
           </p>
@@ -203,7 +240,7 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
               <input value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} maxLength={19} />
             </label>
             <label className="field">
-              <span>Data ważności</span>
+              <span>Data waznosci</span>
               <input value={cardExpiry} onChange={(e) => setCardExpiry(e.target.value)} maxLength={5} />
             </label>
             <label className="field">
@@ -213,7 +250,7 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
           </div>
 
           <div style={{ fontSize: "12px", color: "#6b7280", background: "#f0f9ff", padding: "8px 12px", borderRadius: "6px" }}>
-            Środowisko testowe — żadne pieniądze nie są pobierane.
+            Srodowisko testowe — zadne pieniadze nie sa pobierane.
             Karta testowa: <strong>4242 4242 4242 4242</strong>.
           </div>
 
@@ -225,18 +262,18 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
               disabled={paymentProcessing}
               style={{ background: "#0891b2", borderColor: "#0891b2" }}
             >
-              {paymentProcessing ? "Przetwarzanie..." : "Zapłać i wyjedź"}
+              {paymentProcessing ? "Przetwarzanie..." : "Zaplac i wjedz"}
             </button>
           </div>
         </div>
       ) : null}
 
-      {/* ── Formularz nowej sesji ── */}
       {!paymentStep ? (
         <form className="card form-grid" onSubmit={(e) => void handleStart(e)}>
           <h3 style={{ margin: 0 }}>Rozpocznij pobyt</h3>
           <p style={{ margin: 0, fontSize: "13px", color: "#6b7280" }}>
-            Dostępne dla wszystkich parkingów. Dla parkingów z szlabanem — wjazd bez rezerwacji, opłata przed wyjazdem.
+            Dla parkingów z szlabanem — wjazd bez rezerwacji, oplata przed wyjazdem.
+            Dla parkingów otwartych — wybierz planowana godzine wyjazdu i oplac z gory.
           </p>
 
           {status ? <div className="feedback feedback--empty">{status}</div> : null}
@@ -247,7 +284,9 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
             <select value={parkingLotId} onChange={(e) => setParkingLotId(e.target.value)} required>
               <option value="">— wybierz parking —</option>
               {parkingOptions.map((p) => (
-                <option key={p.id} value={String(p.id)}>{p.name} ({p.address})</option>
+                <option key={p.id} value={String(p.id)}>
+                  {p.name} ({p.address}) — {p.accessType === "OPEN" ? "otwarty" : "szlaban"}
+                </option>
               ))}
             </select>
           </label>
@@ -264,15 +303,38 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
             />
           </label>
 
+          {isOpen ? (
+            <label className="field">
+              <span>Godzina wyjazdu (godz. do)</span>
+              <input
+                type="datetime-local"
+                value={plannedEndAt}
+                min={minDateTimeLocal()}
+                onChange={(e) => setPlannedEndAt(e.target.value)}
+                required
+              />
+              {hours !== null ? (
+                <span style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px", display: "block" }}>
+                  Czas pobytu: <strong>{hours} {hours === 1 ? "godzina" : hours < 5 ? "godziny" : "godzin"}</strong> (zaokraglone w gore)
+                </span>
+              ) : null}
+            </label>
+          ) : null}
+
+          {isOpen ? (
+            <div style={{ fontSize: "12px", color: "#0891b2", background: "#f0f9ff", padding: "8px 12px", borderRadius: "6px" }}>
+              Godzina od ustawiana jest automatycznie. Oplata liczona od teraz do wybranej godziny wyjazdu, zaokraglona w gore do pelnych godzin.
+            </div>
+          ) : null}
+
           <div className="form-actions">
             <button type="submit" className="button" disabled={submitting}>
-              {submitting ? "Rozpoczynanie..." : "Rozpocznij pobyt"}
+              {submitting ? "Rozpoczynanie..." : isOpen ? "Oblicz cene i przejdz do platnosci" : "Rozpocznij pobyt"}
             </button>
           </div>
         </form>
       ) : null}
 
-      {/* ── Lista sesji ── */}
       <div className="card">
         <h3 style={{ margin: "0 0 16px" }}>Moje sesje</h3>
         {sessions.length === 0 ? (
@@ -290,9 +352,9 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
                 </div>
                 <dl className="details">
                   <div><dt>Rejestracja</dt><dd>{s.registrationNumber}</dd></div>
-                  <div><dt>Początek</dt><dd>{formatDateTime(s.startedAt)}</dd></div>
-                  {s.endedAt ? <div><dt>Koniec</dt><dd>{formatDateTime(s.endedAt)}</dd></div> : null}
-                  <div><dt>Czas pobytu</dt><dd>{durationLabel(s.startedAt, s.endedAt)}</dd></div>
+                  <div><dt>Poczatek</dt><dd>{formatDateTime(s.startedAt)}</dd></div>
+                  {s.endedAt ? <div><dt>{s.status === "PAID" || s.status === "PAYMENT_PENDING" ? "Planowany koniec" : "Koniec"}</dt><dd>{formatDateTime(s.endedAt)}</dd></div> : null}
+                  {s.endedAt ? <div><dt>Czas pobytu</dt><dd>{durationLabel(s.startedAt, s.endedAt)}</dd></div> : null}
                   {s.amount != null ? (
                     <div><dt>Kwota</dt><dd>{s.amount.toFixed(2)} {s.currency ?? "PLN"}</dd></div>
                   ) : null}
@@ -305,7 +367,7 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
                       style={{ background: "#0891b2", borderColor: "#0891b2" }}
                       onClick={() => void handleRequestPayment(s.id, s.parkingLotName)}
                     >
-                      Zapłać i wyjedź
+                      Zaplac i wyjezdzaj
                     </button>
                     <button
                       type="button"
@@ -329,7 +391,14 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
                         token: s.paymentToken!
                       })}
                     >
-                      Dokończ płatność
+                      Dokoncz platnosc
+                    </button>
+                    <button
+                      type="button"
+                      className="button button--ghost"
+                      onClick={() => void handleCancel(s.id)}
+                    >
+                      Anuluj
                     </button>
                   </div>
                 ) : null}

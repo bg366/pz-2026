@@ -1,4 +1,4 @@
-package pl.krakow.parking.dto;
+﻿package pl.krakow.parking.dto;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -15,7 +15,8 @@ public record PlateCheckResponse(
         String parkingLotName,
         LocalDateTime startedAt,
         LocalDateTime endedAt,
-        String status
+        String status,
+        boolean expired
     ) {}
 
     public record ActiveReservation(

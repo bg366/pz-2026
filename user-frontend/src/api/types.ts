@@ -176,4 +176,5 @@ export type ParkingSession = {
 export type StartSessionRequest = {
   parkingLotId: number;
   registrationNumber: string;
+  plannedEndAt?: string;
 };
