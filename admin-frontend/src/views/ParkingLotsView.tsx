@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   getParkingLots, getParkingLot, deleteParkingLot,
-  updateOccupancy, updateSpots, updateParkingLotPrice, updateZonePrice, assignParkingLotOwner
+  updateOccupancy, updateSpots, updateParkingLotPrice, updateZonePrice, assignParkingLotOwner, getUsers
 } from "../api/client";
-import type { ParkingLot, PriceForm, SpotFormEntry } from "../api/types";
+import type { AdminUser, ParkingLot, PriceForm, SpotFormEntry } from "../api/types";
 import ParkingLotForm, { type ParkingLotPayload } from "../components/ParkingLotForm";
 import { useToast } from "../components/Toast";
 import { styles } from "../styles";
@@ -63,6 +63,7 @@ export default function ParkingLotsView({ token }: Props) {
   const [spotForms, setSpotForms] = useState<SpotFormEntry[]>(formatSpotForms([]));
   const [priceForm, setPriceForm] = useState<PriceForm>(emptyPrice);
   const [ownerIdInput, setOwnerIdInput] = useState("");
+  const [ownerUsers, setOwnerUsers] = useState<AdminUser[]>([]);
 
   const detailsRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
@@ -92,7 +93,12 @@ export default function ParkingLotsView({ token }: Props) {
     }
   }
 
-  useEffect(() => { void loadAll(); }, []);
+  useEffect(() => {
+    void loadAll();
+    getUsers(token)
+      .then((users) => setOwnerUsers(users.filter((u) => u.roles.includes("PARKING_OWNER"))))
+      .catch(() => { /* non-critical */ });
+  }, []);
 
   function openForm(parking: ParkingLot | null) {
     setEditing(parking);
@@ -377,14 +383,17 @@ export default function ParkingLotsView({ token }: Props) {
           {/* Właściciel */}
           <form style={{ ...styles.formGrid, marginTop: "24px" }} onSubmit={(e) => void submitOwner(e)}>
             <h3 style={{ margin: 0 }}>Właściciel parkingu</h3>
-            <p style={styles.helper}>
-              Podaj ID użytkownika z rolą Właściciel parkingu. Pozostaw puste, aby usunąć właściciela.
-            </p>
             <div className="admin-form-row" style={styles.formRow}>
               <label style={styles.field}>
-                <span style={styles.label}>ID właściciela</span>
-                <input style={styles.input} type="number" min="1" value={ownerIdInput}
-                  onChange={(e) => setOwnerIdInput(e.target.value)} placeholder="np. 3" />
+                <span style={styles.label}>Właściciel</span>
+                <select style={styles.input} value={ownerIdInput} onChange={(e) => setOwnerIdInput(e.target.value)}>
+                  <option value="">— brak właściciela —</option>
+                  {ownerUsers.map((u) => (
+                    <option key={u.id} value={String(u.id)}>
+                      {u.firstName} {u.lastName} ({u.email})
+                    </option>
+                  ))}
+                </select>
               </label>
               <div style={{ display: "flex", alignItems: "flex-end" }}>
                 <button type="submit" style={styles.button}>Przypisz właściciela</button>

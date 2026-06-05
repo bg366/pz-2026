@@ -3,11 +3,12 @@ import ParkingSearch from "./components/ParkingSearch";
 import UserAccount from "./components/UserAccount";
 import Reservations from "./components/Reservations";
 import Notifications from "./components/Notifications";
+import OwnerPanel from "./components/OwnerPanel";
 import { readStoredAuth, getNotifications } from "./api/client";
 import type { AuthState, UserVehicle } from "./api/types";
 import VehicleCheck from "./components/VehicleCheck";
 
-type View = "parking" | "vehicle" | "profile" | "reservations" | "notifications";
+type View = "parking" | "vehicle" | "profile" | "reservations" | "notifications" | "owner";
 
 export default function App() {
   const [view, setView] = useState<View>("parking");
@@ -103,6 +104,15 @@ export default function App() {
               </span>
             ) : null}
           </button>
+          {auth?.roles.includes("PARKING_OWNER") ? (
+            <button
+              type="button"
+              className={view === "owner" ? "tab tab--active" : "tab"}
+              onClick={() => setView("owner")}
+            >
+              Moje parkingi
+            </button>
+          ) : null}
         </nav>
 
         <section className="panel">
@@ -114,6 +124,8 @@ export default function App() {
             <Reservations auth={auth} />
           ) : view === "notifications" ? (
             <Notifications auth={auth} />
+          ) : view === "owner" ? (
+            <OwnerPanel auth={auth} />
           ) : (
             <UserAccount
               auth={auth}

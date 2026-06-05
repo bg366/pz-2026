@@ -1,4 +1,4 @@
-import type { AuthState, UserVehicle, UserVehicleRequest, ParkingSearchResult, VehicleCheckResponse, Reservation, ReservationRequest, AppNotification } from "./types";
+import type { AuthState, UserVehicle, UserVehicleRequest, ParkingSearchResult, VehicleCheckResponse, Reservation, ReservationRequest, AppNotification, OwnerParkingLot } from "./types";
 
 export const AUTH_STORAGE_KEY = "krakow-parking-user-auth";
 
@@ -171,6 +171,34 @@ export async function cancelReservation(id: number): Promise<Reservation> {
     headers: authHeaders()
   });
   return handleResponse<Reservation>(response);
+}
+
+// --- Owner ---
+
+export async function getOwnerParkingLots(): Promise<OwnerParkingLot[]> {
+  const response = await fetch("/api/owner/parking-lots", { headers: authHeaders() });
+  return handleResponse<OwnerParkingLot[]>(response);
+}
+
+export async function updateOwnerOccupancy(id: number, occupiedSpots: number): Promise<OwnerParkingLot> {
+  const response = await fetch(`/api/owner/parking-lots/${id}/occupancy`, {
+    method: "PATCH",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ occupiedSpots })
+  });
+  return handleResponse<OwnerParkingLot>(response);
+}
+
+export async function updateOwnerSpots(
+  id: number,
+  spots: { category: string; total: number; occupied: number }[]
+): Promise<OwnerParkingLot> {
+  const response = await fetch(`/api/owner/parking-lots/${id}/spots`, {
+    method: "PUT",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(spots)
+  });
+  return handleResponse<OwnerParkingLot>(response);
 }
 
 // --- Notifications ---

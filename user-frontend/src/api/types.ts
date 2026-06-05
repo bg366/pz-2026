@@ -84,6 +84,28 @@ export type ReservationRequest = {
   endsAt: string;
 };
 
+export type OwnerParkingSpot = {
+  id: number;
+  category: string;
+  total: number;
+  occupied: number;
+};
+
+export type OwnerParkingLot = {
+  id: number;
+  name: string;
+  address: string;
+  status: ParkingStatus;
+  zone: ParkingZone;
+  totalSpots: number;
+  occupiedSpots: number;
+  totalSctSpots: number;
+  occupiedSctSpots: number;
+  openingHours: string;
+  parkingType: string;
+  spots: OwnerParkingSpot[];
+};
+
 export type NotificationType = "RESERVATION_EXPIRING" | "RESERVATION_EXPIRED";
 
 export type AppNotification = {
