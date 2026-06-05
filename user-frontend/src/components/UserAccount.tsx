@@ -16,6 +16,12 @@ import type { AuthState, FuelType, EmissionStandard, UserVehicle, UserVehicleReq
 
 export type { AuthState, UserVehicle };
 
+const FUEL_LABELS: Record<string, string> = { PETROL: "Benzyna", DIESEL: "Diesel", LPG: "LPG", HYBRID: "Hybryda", ELECTRIC: "Elektryczny" };
+const EMISSION_LABELS: Record<string, string> = { EURO_1: "Euro 1", EURO_2: "Euro 2", EURO_3: "Euro 3", EURO_4: "Euro 4", EURO_5: "Euro 5", EURO_6: "Euro 6", ELECTRIC: "Elektryczny" };
+
+function fuelLabel(key: string): string { return FUEL_LABELS[key] ?? key; }
+function emissionLabel(key: string): string { return EMISSION_LABELS[key] ?? key; }
+
 type UserAccountProps = {
   auth: AuthState | null;
   onAuthChange: (auth: AuthState | null) => void;
@@ -313,11 +319,11 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
             value={vehicleForm.fuelType}
             onChange={(event) => setVehicleForm((current) => ({ ...current, fuelType: event.target.value as FuelType }))}
           >
-            <option value="PETROL">PETROL</option>
-            <option value="DIESEL">DIESEL</option>
+            <option value="PETROL">Benzyna</option>
+            <option value="DIESEL">Diesel</option>
             <option value="LPG">LPG</option>
-            <option value="HYBRID">HYBRID</option>
-            <option value="ELECTRIC">ELECTRIC</option>
+            <option value="HYBRID">Hybryda</option>
+            <option value="ELECTRIC">Elektryczny</option>
           </select>
         </label>
         <label className="field">
@@ -328,13 +334,13 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
               setVehicleForm((current) => ({ ...current, emissionStandard: event.target.value as EmissionStandard }))
             }
           >
-            <option value="EURO_1">EURO_1</option>
-            <option value="EURO_2">EURO_2</option>
-            <option value="EURO_3">EURO_3</option>
-            <option value="EURO_4">EURO_4</option>
-            <option value="EURO_5">EURO_5</option>
-            <option value="EURO_6">EURO_6</option>
-            <option value="ELECTRIC">ELECTRIC</option>
+            <option value="EURO_1">Euro 1</option>
+            <option value="EURO_2">Euro 2</option>
+            <option value="EURO_3">Euro 3</option>
+            <option value="EURO_4">Euro 4</option>
+            <option value="EURO_5">Euro 5</option>
+            <option value="EURO_6">Euro 6</option>
+            <option value="ELECTRIC">Elektryczny</option>
           </select>
         </label>
         <label className="field">
@@ -368,12 +374,12 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
                 <p>{vehicle.registrationNumber} — {vehicle.productionYear}</p>
               </div>
               <span className={vehicle.active ? "badge badge--success" : "badge"}>
-                {vehicle.active ? "Aktywny" : vehicle.fuelType}
+                {vehicle.active ? "Aktywny" : fuelLabel(vehicle.fuelType)}
               </span>
             </div>
             <dl className="details">
-              <div><dt>Paliwo</dt><dd>{vehicle.fuelType}</dd></div>
-              <div><dt>Norma</dt><dd>{vehicle.emissionStandard}</dd></div>
+              <div><dt>Paliwo</dt><dd>{fuelLabel(vehicle.fuelType)}</dd></div>
+              <div><dt>Norma emisji</dt><dd>{emissionLabel(vehicle.emissionStandard)}</dd></div>
               <div><dt>SCT</dt><dd>{vehicle.sctCompliant ? "Spełnia" : "Wymaga sprawdzenia"}</dd></div>
             </dl>
             <div className="result-card__actions">

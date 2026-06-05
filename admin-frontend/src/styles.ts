@@ -86,7 +86,7 @@ export const styles = {
   error: { backgroundColor: "#fff1f2", color: "#be123c" },
   success: { backgroundColor: "#ecfdf5", color: "#047857" },
   formGrid: { display: "grid", gap: "12px" },
-  formRow: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "12px" },
+  formRow: { gap: "12px" },
   field: { display: "grid", gap: "8px" },
   label: { fontSize: "14px", fontWeight: 700, color: "#7c2d12" },
   input: {
@@ -98,7 +98,7 @@ export const styles = {
     fontSize: "14px",
     backgroundColor: "#fffefc"
   },
-  summaryGrid: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "12px" },
+  summaryGrid: { gap: "12px" },
   summaryCard: {
     padding: "16px",
     borderRadius: "16px",

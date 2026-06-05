@@ -1,29 +1,23 @@
 import { useEffect, useState } from "react";
-import {
-  getUsers,
-  getUserDetails,
-  updateUserRole,
-  updateUserStatus,
-  resetUserPassword
-} from "../api/client";
+import { getUsers, getUserDetails, updateUserRole, updateUserStatus, resetUserPassword } from "../api/client";
 import type { AdminUser, AdminUserDetails, UserRole, UserStatus } from "../api/types";
 import { styles } from "../styles";
+import { useToast } from "../components/Toast";
+import { PL, pl } from "../i18n";
 
 type Props = { token: string };
 
 export default function UsersView({ token }: Props) {
+  const { showToast } = useToast();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<AdminUserDetails | null>(null);
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   async function loadUsers() {
     try {
-      const list = await getUsers(token);
-      setUsers(list);
+      setUsers(await getUsers(token));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd ładowania użytkowników.");
+      showToast(err instanceof Error ? err.message : "Błąd ładowania użytkowników.", "error");
     }
   }
 
@@ -32,47 +26,41 @@ export default function UsersView({ token }: Props) {
       setSelectedUser(await getUserDetails(id, token));
       setTemporaryPassword(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd ładowania użytkownika.");
+      showToast(err instanceof Error ? err.message : "Błąd ładowania danych użytkownika.", "error");
     }
   }
 
   useEffect(() => { void loadUsers(); }, []);
 
   async function handleRoleChange(id: number, role: UserRole) {
-    setError(null);
-    setStatus(null);
     try {
       await updateUserRole(id, role, token);
-      setStatus("Zmieniono rolę użytkownika.");
+      showToast("Rola użytkownika zmieniona.");
       await loadUsers();
       if (selectedUser?.id === id) await loadUserDetails(id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd zmiany roli.");
+      showToast(err instanceof Error ? err.message : "Błąd zmiany roli.", "error");
     }
   }
 
   async function handleStatusChange(id: number, userStatus: UserStatus) {
-    setError(null);
-    setStatus(null);
     try {
       await updateUserStatus(id, userStatus, token);
-      setStatus("Zmieniono status użytkownika.");
+      showToast("Status użytkownika zmieniony.");
       await loadUsers();
       if (selectedUser?.id === id) await loadUserDetails(id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd zmiany statusu.");
+      showToast(err instanceof Error ? err.message : "Błąd zmiany statusu.", "error");
     }
   }
 
   async function handlePasswordReset(id: number) {
-    setError(null);
-    setStatus(null);
     try {
       const result = await resetUserPassword(id, token);
       setTemporaryPassword(result.temporaryPassword);
-      setStatus("Wygenerowano hasło tymczasowe.");
+      showToast("Wygenerowano hasło tymczasowe.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd resetu hasła.");
+      showToast(err instanceof Error ? err.message : "Błąd resetu hasła.", "error");
     }
   }
 
@@ -86,13 +74,17 @@ export default function UsersView({ token }: Props) {
         <span style={styles.badge}>{users.length} kont</span>
       </div>
 
-      {status ? <div style={{ ...styles.feedback, ...styles.success }}>{status}</div> : null}
-      {error ? <div style={{ ...styles.feedback, ...styles.error }}>{error}</div> : null}
+      {temporaryPassword ? (
+        <div style={{ ...styles.feedback, ...styles.success, marginBottom: "16px" }}>
+          Hasło tymczasowe: <strong>{temporaryPassword}</strong>
+        </div>
+      ) : null}
 
       <div style={styles.tableWrapper}>
         <table style={styles.table}>
           <thead>
             <tr>
+              <th style={styles.th}>ID</th>
               <th style={styles.th}>Użytkownik</th>
               <th style={styles.th}>Rola</th>
               <th style={styles.th}>Status</th>
@@ -104,29 +96,26 @@ export default function UsersView({ token }: Props) {
             {users.map((user) => (
               <tr key={user.id}>
                 <td style={styles.td}>
+                  <span style={{ ...styles.badge, fontSize: "11px" }}>#{user.id}</span>
+                </td>
+                <td style={styles.td}>
                   <strong>{user.firstName} {user.lastName}</strong>
                   <div style={styles.helper}>{user.email}</div>
                 </td>
                 <td style={styles.td}>
-                  <select
-                    style={styles.input}
-                    value={user.role}
-                    onChange={(e) => void handleRoleChange(user.id, e.target.value as UserRole)}
-                  >
-                    <option value="ADMIN">ADMIN</option>
-                    <option value="PARKING_OWNER">PARKING_OWNER</option>
-                    <option value="USER">USER</option>
+                  <select style={{ ...styles.input, fontSize: "13px" }} value={user.role}
+                    onChange={(e) => void handleRoleChange(user.id, e.target.value as UserRole)}>
+                    <option value="ADMIN">Administrator</option>
+                    <option value="PARKING_OWNER">Właściciel parkingu</option>
+                    <option value="USER">Użytkownik</option>
                   </select>
                 </td>
                 <td style={styles.td}>
-                  <select
-                    style={styles.input}
-                    value={user.status}
-                    onChange={(e) => void handleStatusChange(user.id, e.target.value as UserStatus)}
-                  >
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="BLOCKED">BLOCKED</option>
-                    <option value="DELETED">DELETED</option>
+                  <select style={{ ...styles.input, fontSize: "13px" }} value={user.status}
+                    onChange={(e) => void handleStatusChange(user.id, e.target.value as UserStatus)}>
+                    <option value="ACTIVE">Aktywny</option>
+                    <option value="BLOCKED">Zablokowany</option>
+                    <option value="DELETED">Usunięty</option>
                   </select>
                 </td>
                 <td style={styles.td}>
@@ -151,22 +140,23 @@ export default function UsersView({ token }: Props) {
         </table>
       </div>
 
-      {temporaryPassword ? (
-        <div style={{ ...styles.feedback, ...styles.success, marginTop: "16px" }}>
-          Hasło tymczasowe: <strong>{temporaryPassword}</strong>
-        </div>
-      ) : null}
-
       {selectedUser ? (
         <div style={{ ...styles.summaryCard, marginTop: "20px" }}>
-          <strong>{selectedUser.firstName} {selectedUser.lastName}</strong>
-          <div style={styles.helper}>
-            {selectedUser.email} — {selectedUser.role} — {selectedUser.status}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", marginBottom: "12px" }}>
+            <div>
+              <strong style={{ fontSize: "16px" }}>{selectedUser.firstName} {selectedUser.lastName}</strong>
+              <div style={styles.helper}>
+                ID: #{selectedUser.id} &bull; {selectedUser.email} &bull;{" "}
+                {pl(PL.userRole, selectedUser.role)} &bull; {pl(PL.userStatus, selectedUser.status)}
+              </div>
+            </div>
+            <button type="button" style={styles.subtleButton} onClick={() => setSelectedUser(null)}>Zamknij</button>
           </div>
-          <div style={{ ...styles.tableWrapper, marginTop: "12px" }}>
+          <div style={styles.tableWrapper}>
             <table style={styles.table}>
               <thead>
                 <tr>
+                  <th style={styles.th}>ID</th>
                   <th style={styles.th}>Pojazd</th>
                   <th style={styles.th}>Rejestracja</th>
                   <th style={styles.th}>SCT</th>
@@ -176,8 +166,13 @@ export default function UsersView({ token }: Props) {
                 {selectedUser.vehicles.map((vehicle) => (
                   <tr key={vehicle.id}>
                     <td style={styles.td}>
+                      <span style={{ ...styles.badge, fontSize: "11px" }}>#{vehicle.id}</span>
+                    </td>
+                    <td style={styles.td}>
                       <strong>{vehicle.brand} {vehicle.model}</strong>
-                      <div style={styles.helper}>{vehicle.fuelType} — {vehicle.emissionStandard}</div>
+                      <div style={styles.helper}>
+                        {pl(PL.fuelType, vehicle.fuelType)} — {pl(PL.emission, vehicle.emissionStandard)}
+                      </div>
                     </td>
                     <td style={styles.td}>
                       {vehicle.registrationNumber}
@@ -187,7 +182,7 @@ export default function UsersView({ token }: Props) {
                   </tr>
                 ))}
                 {selectedUser.vehicles.length === 0 ? (
-                  <tr><td style={styles.td} colSpan={3}>Brak zapisanych pojazdów.</td></tr>
+                  <tr><td style={styles.td} colSpan={4}>Brak zapisanych pojazdów.</td></tr>
                 ) : null}
               </tbody>
             </table>

@@ -74,11 +74,11 @@ export default function VehicleCheck({ activeVehicle }: VehicleCheckProps) {
           <span>Typ paliwa</span>
           <select value={fuelType} onChange={(event) => setFuelType(event.target.value as FuelType | "")}>
             <option value="">Wybierz</option>
-            <option value="PETROL">PETROL</option>
-            <option value="DIESEL">DIESEL</option>
+            <option value="PETROL">Benzyna</option>
+            <option value="DIESEL">Diesel</option>
             <option value="LPG">LPG</option>
-            <option value="HYBRID">HYBRID</option>
-            <option value="ELECTRIC">ELECTRIC</option>
+            <option value="HYBRID">Hybryda</option>
+            <option value="ELECTRIC">Elektryczny</option>
           </select>
         </label>
 
@@ -89,22 +89,22 @@ export default function VehicleCheck({ activeVehicle }: VehicleCheckProps) {
             onChange={(event) => setEmissionStandard(event.target.value as EmissionStandard | "")}
           >
             <option value="">Wybierz</option>
-            <option value="EURO_1">EURO_1</option>
-            <option value="EURO_2">EURO_2</option>
-            <option value="EURO_3">EURO_3</option>
-            <option value="EURO_4">EURO_4</option>
-            <option value="EURO_5">EURO_5</option>
-            <option value="EURO_6">EURO_6</option>
-            <option value="ELECTRIC">ELECTRIC</option>
+            <option value="EURO_1">Euro 1</option>
+            <option value="EURO_2">Euro 2</option>
+            <option value="EURO_3">Euro 3</option>
+            <option value="EURO_4">Euro 4</option>
+            <option value="EURO_5">Euro 5</option>
+            <option value="EURO_6">Euro 6</option>
+            <option value="ELECTRIC">Elektryczny</option>
           </select>
         </label>
 
         <label className="field">
           <span>Strefa</span>
           <select value={zone} onChange={(event) => setZone(event.target.value as ParkingZone)}>
-            <option value="ZONE_A">ZONE_A</option>
-            <option value="ZONE_B">ZONE_B</option>
-            <option value="ZONE_C">ZONE_C</option>
+            <option value="ZONE_A">Strefa A</option>
+            <option value="ZONE_B">Strefa B</option>
+            <option value="ZONE_C">Strefa C</option>
           </select>
         </label>
 

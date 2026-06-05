@@ -1,25 +1,20 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { styles } from "../styles";
+import { useToast } from "../components/Toast";
+import { PL, pl } from "../i18n";
 
 type IotDeviceStatus = "ACTIVE" | "INACTIVE" | "ERROR";
 
 type IotDevice = {
-  id: number;
-  parkingLotId: number;
-  parkingLotName: string;
-  externalDeviceId: string;
-  status: IotDeviceStatus;
-  lastSeenAt: string | null;
-  createdAt: string;
+  id: number; parkingLotId: number; parkingLotName: string;
+  externalDeviceId: string; status: IotDeviceStatus; lastSeenAt: string | null; createdAt: string;
 };
 
 type Props = { token: string };
 
 async function fetchDevices(token: string): Promise<IotDevice[]> {
-  const res = await fetch("/api/admin/iot-devices", {
-    headers: { Authorization: `Basic ${token}` }
-  });
+  const res = await fetch("/api/admin/iot-devices", { headers: { Authorization: `Basic ${token}` } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json() as Promise<IotDevice[]>;
 }
@@ -30,10 +25,7 @@ async function registerDevice(token: string, parkingLotId: number, externalDevic
     headers: { Authorization: `Basic ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ parkingLotId, externalDeviceId })
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => `HTTP ${res.status}`);
-    throw new Error(text || `HTTP ${res.status}`);
-  }
+  if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
   return res.json() as Promise<IotDevice>;
 }
 
@@ -43,14 +35,11 @@ async function sendReading(token: string, deviceId: string, occupiedSpots: numbe
     headers: { Authorization: `Basic ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ deviceId, occupiedSpots })
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => `HTTP ${res.status}`);
-    throw new Error(text || `HTTP ${res.status}`);
-  }
+  if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
   return res.json() as Promise<IotDevice>;
 }
 
-function statusBadgeStyle(status: IotDeviceStatus): Record<string, string> {
+function statusBadgeStyle(status: IotDeviceStatus): React.CSSProperties {
   if (status === "ACTIVE") return { backgroundColor: "#ecfdf5", color: "#047857" };
   if (status === "ERROR") return { backgroundColor: "#fff1f2", color: "#be123c" };
   return { backgroundColor: "#f3f4f6", color: "#6b7280" };
@@ -62,9 +51,8 @@ function formatDate(iso: string | null): string {
 }
 
 export default function IotView({ token }: Props) {
+  const { showToast } = useToast();
   const [devices, setDevices] = useState<IotDevice[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
   const [parkingLotId, setParkingLotId] = useState("");
   const [externalDeviceId, setExternalDeviceId] = useState("");
   const [readingDeviceId, setReadingDeviceId] = useState("");
@@ -74,7 +62,7 @@ export default function IotView({ token }: Props) {
     try {
       setDevices(await fetchDevices(token));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd ładowania urządzeń.");
+      showToast(err instanceof Error ? err.message : "Błąd ładowania urządzeń.", "error");
     }
   }
 
@@ -82,53 +70,47 @@ export default function IotView({ token }: Props) {
 
   async function handleRegister(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
-    setStatus(null);
     try {
       await registerDevice(token, Number(parkingLotId), externalDeviceId.trim());
-      setStatus(`Zarejestrowano urządzenie: ${externalDeviceId}.`);
+      showToast(`Urządzenie ${externalDeviceId} zarejestrowane.`);
       setParkingLotId("");
       setExternalDeviceId("");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd rejestracji urządzenia.");
+      showToast(err instanceof Error ? err.message : "Błąd rejestracji urządzenia.", "error");
     }
   }
 
   async function handleReading(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
-    setStatus(null);
     try {
       await sendReading(token, readingDeviceId.trim(), Number(readingOccupied));
-      setStatus(`Odczyt wysłany z urządzenia ${readingDeviceId}: ${readingOccupied} zajętych.`);
+      showToast(`Odczyt z ${readingDeviceId}: ${readingOccupied} zajętych miejsc.`);
       setReadingDeviceId("");
       setReadingOccupied("0");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd wysyłania odczytu.");
+      showToast(err instanceof Error ? err.message : "Błąd wysyłania odczytu.", "error");
     }
   }
 
   return (
-    <div style={styles.grid}>
-      {/* LEFT — devices table */}
+    <div style={styles.stack}>
+      {/* Lista urządzeń */}
       <section style={styles.card}>
         <div style={styles.cardHeader}>
           <div>
             <h2 style={styles.sectionTitle}>Urządzenia IoT</h2>
-            <p style={styles.helper}>Lista czujników zajętości przypisanych do parkingów.</p>
+            <p style={styles.helper}>Czujniki zajętości przypisane do parkingów.</p>
           </div>
           <button type="button" style={styles.subtleButton} onClick={() => void load()}>Odśwież</button>
         </div>
-
-        {status ? <div style={{ ...styles.feedback, ...styles.success }}>{status}</div> : null}
-        {error ? <div style={{ ...styles.feedback, ...styles.error }}>{error}</div> : null}
 
         <div style={styles.tableWrapper}>
           <table style={styles.table}>
             <thead>
               <tr>
+                <th style={styles.th}>ID</th>
                 <th style={styles.th}>Urządzenie</th>
                 <th style={styles.th}>Parking</th>
                 <th style={styles.th}>Status</th>
@@ -139,34 +121,36 @@ export default function IotView({ token }: Props) {
               {devices.map((d) => (
                 <tr key={d.id}>
                   <td style={styles.td}>
+                    <span style={{ ...styles.badge, fontSize: "11px" }}>#{d.id}</span>
+                  </td>
+                  <td style={styles.td}>
                     <strong>{d.externalDeviceId}</strong>
-                    <div style={styles.helper}>ID: {d.id}</div>
                   </td>
                   <td style={styles.td}>
                     {d.parkingLotName}
-                    <div style={styles.helper}>#{d.parkingLotId}</div>
+                    <div style={styles.helper}>ID: #{d.parkingLotId}</div>
                   </td>
                   <td style={styles.td}>
                     <span style={{ ...styles.badge, ...statusBadgeStyle(d.status) }}>
-                      {d.status}
+                      {pl(PL.iotStatus, d.status)}
                     </span>
                   </td>
                   <td style={styles.td}>{formatDate(d.lastSeenAt)}</td>
                 </tr>
               ))}
               {devices.length === 0 ? (
-                <tr><td style={styles.td} colSpan={4}>Brak zarejestrowanych urządzeń.</td></tr>
+                <tr><td style={styles.td} colSpan={5}>Brak zarejestrowanych urządzeń.</td></tr>
               ) : null}
             </tbody>
           </table>
         </div>
       </section>
 
-      {/* RIGHT — forms */}
-      <div style={styles.stack}>
+      {/* Rejestracja + Symulacja */}
+      <div className="admin-form-row" style={styles.formRow}>
         <section style={styles.card}>
           <div style={styles.cardHeader}>
-            <h2 style={styles.sectionTitle}>Rejestruj urządzenie</h2>
+            <h2 style={styles.sectionTitle}>Zarejestruj urządzenie</h2>
           </div>
           <form style={styles.formGrid} onSubmit={(e) => void handleRegister(e)}>
             <label style={styles.field}>
@@ -188,7 +172,7 @@ export default function IotView({ token }: Props) {
             <h2 style={styles.sectionTitle}>Symuluj odczyt czujnika</h2>
           </div>
           <p style={styles.helper}>
-            Wyślij odczyt obłożenia z urządzenia — zaktualizuje obłożenie parkingu.
+            Wyślij odczyt obłożenia — zaktualizuje zajętość parkingu w czasie rzeczywistym.
           </p>
           <form style={{ ...styles.formGrid, marginTop: "12px" }} onSubmit={(e) => void handleReading(e)}>
             <label style={styles.field}>

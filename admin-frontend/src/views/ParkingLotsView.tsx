@@ -1,30 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
-  getParkingLots,
-  getParkingLot,
-  deleteParkingLot,
-  updateOccupancy,
-  updateSpots,
-  updateParkingLotPrice,
-  updateZonePrice,
-  assignParkingLotOwner
+  getParkingLots, getParkingLot, deleteParkingLot,
+  updateOccupancy, updateSpots, updateParkingLotPrice, updateZonePrice, assignParkingLotOwner
 } from "../api/client";
 import type { ParkingLot, PriceForm, SpotFormEntry } from "../api/types";
 import ParkingLotForm, { type ParkingLotPayload } from "../components/ParkingLotForm";
+import { useToast } from "../components/Toast";
 import { styles } from "../styles";
+import { PL, pl } from "../i18n";
 
 type Props = { token: string };
 
 const spotCategories: SpotFormEntry["category"][] = ["REGULAR", "EV", "DISABLED", "SCT_READY"];
-
-const emptyPriceForm: PriceForm = {
-  firstHourPrice: "0",
-  secondHourPrice: "0",
-  thirdHourPrice: "0",
-  nextHourPrice: "0",
-  dailyPrice: "0"
-};
+const emptyPrice: PriceForm = { firstHourPrice: "0", secondHourPrice: "0", thirdHourPrice: "0", nextHourPrice: "0", dailyPrice: "0" };
 
 function formatSpotForms(spots: ParkingLot["spots"]): SpotFormEntry[] {
   return spotCategories.map((category) => {
@@ -53,7 +42,7 @@ function mapParkingToPayload(parking: ParkingLot): ParkingLotPayload {
 }
 
 function mapPriceToForm(price: ParkingLot["price"]): PriceForm {
-  if (!price) return emptyPriceForm;
+  if (!price) return emptyPrice;
   return {
     firstHourPrice: String(price.firstHourPrice),
     secondHourPrice: String(price.secondHourPrice),
@@ -64,24 +53,26 @@ function mapPriceToForm(price: ParkingLot["price"]): PriceForm {
 }
 
 export default function ParkingLotsView({ token }: Props) {
+  const { showToast } = useToast();
   const [parkingLots, setParkingLots] = useState<ParkingLot[]>([]);
   const [selected, setSelected] = useState<ParkingLot | null>(null);
   const [editing, setEditing] = useState<ParkingLot | null>(null);
+  const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [occupancyValue, setOccupancyValue] = useState("0");
   const [spotForms, setSpotForms] = useState<SpotFormEntry[]>(formatSpotForms([]));
-  const [priceForm, setPriceForm] = useState<PriceForm>(emptyPriceForm);
+  const [priceForm, setPriceForm] = useState<PriceForm>(emptyPrice);
   const [ownerIdInput, setOwnerIdInput] = useState("");
-  const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+
+  const detailsRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLDivElement>(null);
 
   async function loadAll() {
     setLoading(true);
-    setError(null);
     try {
       setParkingLots(await getParkingLots(token));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd ładowania parkingów.");
+      showToast(err instanceof Error ? err.message : "Błąd ładowania parkingów.", "error");
     } finally {
       setLoading(false);
     }
@@ -95,29 +86,36 @@ export default function ParkingLotsView({ token }: Props) {
       setSpotForms(formatSpotForms(parking.spots));
       setPriceForm(mapPriceToForm(parking.price));
       setOwnerIdInput(parking.ownerId != null ? String(parking.ownerId) : "");
+      setTimeout(() => detailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd ładowania szczegółów.");
+      showToast(err instanceof Error ? err.message : "Błąd ładowania szczegółów.", "error");
     }
   }
 
   useEffect(() => { void loadAll(); }, []);
 
+  function openForm(parking: ParkingLot | null) {
+    setEditing(parking);
+    setShowForm(true);
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  }
+
   async function handleDelete(id: number) {
     if (!window.confirm("Usunąć wybrany parking?")) return;
-    setError(null);
     try {
       await deleteParkingLot(id, token);
-      setStatus("Parking usunięty.");
-      setSelected(null);
+      showToast("Parking został usunięty.");
+      if (selected?.id === id) setSelected(null);
+      setShowForm(false);
       setEditing(null);
       await loadAll();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd usuwania.");
+      showToast(err instanceof Error ? err.message : "Błąd usuwania parkingu.", "error");
     }
   }
 
   async function handleParkingSaved(savedParking: ParkingLot) {
-    setStatus(`Zapisano parking: ${savedParking.name}.`);
+    setShowForm(false);
     setEditing(null);
     await loadAll();
     await loadDetails(savedParking.id);
@@ -126,85 +124,81 @@ export default function ParkingLotsView({ token }: Props) {
   async function submitOccupancy(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected) return;
-    setError(null);
     try {
       const updated = await updateOccupancy(selected.id, Number(occupancyValue), token);
-      setStatus("Zaktualizowano obłożenie.");
+      showToast("Obłożenie zaktualizowane.");
       setSelected(updated);
       await loadAll();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd aktualizacji obłożenia.");
+      showToast(err instanceof Error ? err.message : "Błąd aktualizacji obłożenia.", "error");
     }
   }
 
   async function submitSpots(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected) return;
-    setError(null);
     try {
       const updated = await updateSpots(
         selected.id,
         spotForms.map((s) => ({ category: s.category, total: Number(s.total), occupied: Number(s.occupied) })),
         token
       );
-      setStatus("Zapisano konfigurację kategorii miejsc.");
+      showToast("Kategorie miejsc zapisane.");
       setSelected(updated);
       setSpotForms(formatSpotForms(updated.spots));
       await loadAll();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd zapisu kategorii.");
+      showToast(err instanceof Error ? err.message : "Błąd zapisu kategorii.", "error");
     }
   }
 
   async function submitPrice(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected) return;
-    setError(null);
     const isPrivate = selected.parkingType === "PRIVATE" || selected.price?.parkingLotId != null;
     try {
       if (isPrivate) {
         await updateParkingLotPrice(selected.id, priceForm, token);
-        setStatus("Zapisano cennik parkingu.");
+        showToast("Cennik parkingu zapisany.");
       } else {
         await updateZonePrice(selected.zone, priceForm, token);
-        setStatus("Zapisano cennik strefy.");
+        showToast(`Cennik ${pl(PL.zone, selected.zone)} zapisany.`);
       }
       await loadDetails(selected.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd zapisu cennika.");
+      showToast(err instanceof Error ? err.message : "Błąd zapisu cennika.", "error");
     }
   }
 
   async function submitOwner(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected) return;
-    setError(null);
     try {
       const ownerId = ownerIdInput.trim() ? Number(ownerIdInput) : null;
       const updated = await assignParkingLotOwner(selected.id, ownerId, token);
-      setStatus(ownerId ? `Przypisano właściciela (ID: ${ownerId}).` : "Usunięto właściciela.");
+      showToast(ownerId ? `Przypisano właściciela (ID: ${ownerId}).` : "Usunięto właściciela.");
       setSelected(updated);
       setOwnerIdInput(updated.ownerId != null ? String(updated.ownerId) : "");
       await loadAll();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd przypisania właściciela.");
+      showToast(err instanceof Error ? err.message : "Błąd przypisania właściciela.", "error");
     }
   }
 
   return (
-    <div style={styles.grid}>
-      {/* LEFT — list */}
+    <div style={styles.stack}>
+      {/* ── Lista parkingów ── */}
       <section style={styles.card}>
         <div style={styles.cardHeader}>
           <div>
             <h2 style={styles.sectionTitle}>Parkingi</h2>
-            <p style={styles.helper}>Wybierz parking, aby zobaczyć szczegóły i konfigurację.</p>
+            <p style={styles.helper}>Wybierz parking, aby zobaczyć szczegóły lub edytować dane.</p>
           </div>
-          <button type="button" style={styles.button} onClick={() => void loadAll()}>Odśwież</button>
+          <div style={styles.actions}>
+            <button type="button" style={styles.button} onClick={() => openForm(null)}>Dodaj parking</button>
+            <button type="button" style={styles.subtleButton} onClick={() => void loadAll()}>Odśwież</button>
+          </div>
         </div>
-
-        {status ? <div style={{ ...styles.feedback, ...styles.success }}>{status}</div> : null}
-        {error ? <div style={{ ...styles.feedback, ...styles.error }}>{error}</div> : null}
 
         {loading ? (
           <p style={styles.helper}>Ładowanie...</p>
@@ -213,8 +207,9 @@ export default function ParkingLotsView({ token }: Props) {
             <table style={styles.table}>
               <thead>
                 <tr>
+                  <th style={styles.th}>ID</th>
                   <th style={styles.th}>Parking</th>
-                  <th style={styles.th}>Strefa</th>
+                  <th style={styles.th}>Strefa / Typ</th>
                   <th style={styles.th}>Obłożenie</th>
                   <th style={styles.th}>Akcje</th>
                 </tr>
@@ -223,12 +218,18 @@ export default function ParkingLotsView({ token }: Props) {
                 {parkingLots.map((p) => (
                   <tr key={p.id}>
                     <td style={styles.td}>
+                      <span style={{ ...styles.badge, fontSize: "11px" }}>#{p.id}</span>
+                    </td>
+                    <td style={styles.td}>
                       <strong>{p.name}</strong>
                       <div style={styles.helper}>{p.address}</div>
-                      <div style={styles.helper}>{p.status} — {p.openingHours}</div>
+                      <div style={styles.helper}>{pl(PL.parkingStatus, p.status)} — {p.openingHours}</div>
                       {p.ownerEmail ? <div style={styles.helper}>Właściciel: {p.ownerEmail}</div> : null}
                     </td>
-                    <td style={styles.td}><span style={styles.badge}>{p.zone}</span></td>
+                    <td style={styles.td}>
+                      <span style={styles.badge}>{pl(PL.zone, p.zone)}</span>
+                      <div style={styles.helper}>{pl(PL.parkingType, p.parkingType)}</div>
+                    </td>
                     <td style={styles.td}>
                       {p.occupiedSpots} / {p.totalSpots}
                       <div style={styles.helper}>SCT: {p.occupiedSctSpots} / {p.totalSctSpots}</div>
@@ -236,29 +237,34 @@ export default function ParkingLotsView({ token }: Props) {
                     <td style={styles.td}>
                       <div style={styles.actions}>
                         <button type="button" style={styles.subtleButton} onClick={() => void loadDetails(p.id)}>Szczegóły</button>
-                        <button type="button" style={styles.subtleButton} onClick={() => setEditing(p)}>Edytuj</button>
+                        <button type="button" style={styles.subtleButton} onClick={() => openForm(p)}>Edytuj</button>
                         <button type="button" style={styles.dangerButton} onClick={() => void handleDelete(p.id)}>Usuń</button>
                       </div>
                     </td>
                   </tr>
                 ))}
+                {parkingLots.length === 0 ? (
+                  <tr><td style={styles.td} colSpan={5}>Brak parkingów.</td></tr>
+                ) : null}
               </tbody>
             </table>
           </div>
         )}
       </section>
 
-      {/* RIGHT — form + details */}
-      <div style={styles.stack}>
-        <section style={styles.card}>
+      {/* ── Formularz dodaj/edytuj ── */}
+      {showForm ? (
+        <section style={styles.card} ref={formRef}>
           <div style={styles.cardHeader}>
             <div>
-              <h2 style={styles.sectionTitle}>{editing ? "Edytuj parking" : "Dodaj parking"}</h2>
-              <p style={styles.helper}>Formularz tworzenia i edycji danych parkingu.</p>
+              <h2 style={styles.sectionTitle}>
+                {editing ? `Edytuj: ${editing.name}` : "Dodaj parking"}
+              </h2>
+              {editing ? <p style={styles.helper}>ID: #{editing.id}</p> : null}
             </div>
-            {editing ? (
-              <button type="button" style={styles.subtleButton} onClick={() => setEditing(null)}>Anuluj edycję</button>
-            ) : null}
+            <button type="button" style={styles.subtleButton} onClick={() => { setShowForm(false); setEditing(null); }}>
+              Anuluj
+            </button>
           </div>
           <ParkingLotForm
             initialData={editing ? mapParkingToPayload(editing) : null}
@@ -266,108 +272,127 @@ export default function ParkingLotsView({ token }: Props) {
             onSaved={(savedParking) => void handleParkingSaved(savedParking)}
           />
         </section>
+      ) : null}
 
-        {selected ? (
-          <section style={styles.card}>
-            <div style={styles.cardHeader}>
-              <h2 style={styles.sectionTitle}>Szczegóły: {selected.name}</h2>
-              <span style={styles.badge}>{selected.status}</span>
+      {/* ── Szczegóły parkingu ── */}
+      {selected ? (
+        <section style={styles.card} ref={detailsRef}>
+          <div style={styles.cardHeader}>
+            <div>
+              <h2 style={styles.sectionTitle}>{selected.name}</h2>
+              <p style={styles.helper}>
+                ID: #{selected.id} &bull; {pl(PL.parkingStatus, selected.status)} &bull; {selected.address}
+              </p>
             </div>
+            <div style={styles.actions}>
+              <span style={styles.badge}>{pl(PL.zone, selected.zone)}</span>
+              <button type="button" style={styles.subtleButton} onClick={() => setSelected(null)}>Zamknij</button>
+            </div>
+          </div>
 
-            <div style={styles.summaryGrid}>
-              <div style={styles.summaryCard}>
-                <strong>Dostępne</strong>
-                <div style={styles.helper}>{selected.totalSpots - selected.occupiedSpots} miejsc</div>
-              </div>
-              <div style={styles.summaryCard}>
-                <strong>Miejsca SCT</strong>
-                <div style={styles.helper}>{selected.occupiedSctSpots} / {selected.totalSctSpots}</div>
-              </div>
-              <div style={styles.summaryCard}>
-                <strong>Godziny</strong>
-                <div style={styles.helper}>{selected.openingHours}</div>
-              </div>
-              <div style={styles.summaryCard}>
-                <strong>Właściciel</strong>
-                <div style={styles.helper}>{selected.ownerEmail ?? "brak"}</div>
-              </div>
-              <div style={styles.summaryCard}>
-                <strong>Cennik</strong>
-                <div style={styles.helper}>{selected.price ? "skonfigurowany" : "brak"}</div>
-              </div>
-              <div style={styles.summaryCard}>
-                <strong>Kategorie</strong>
-                <div style={styles.helper}>{selected.spots.length}</div>
+          {/* Podsumowanie */}
+          <div className="admin-summary-grid" style={styles.summaryGrid}>
+            <div style={styles.summaryCard}>
+              <strong>Wolne miejsca</strong>
+              <div style={styles.helper}>{selected.totalSpots - selected.occupiedSpots} / {selected.totalSpots}</div>
+            </div>
+            <div style={styles.summaryCard}>
+              <strong>Miejsca SCT</strong>
+              <div style={styles.helper}>{selected.occupiedSctSpots} zajęte / {selected.totalSctSpots} łącznie</div>
+            </div>
+            <div style={styles.summaryCard}>
+              <strong>Godziny działania</strong>
+              <div style={styles.helper}>{selected.openingHours}</div>
+            </div>
+            <div style={styles.summaryCard}>
+              <strong>Właściciel</strong>
+              <div style={styles.helper}>{selected.ownerEmail ?? "brak"}</div>
+            </div>
+            <div style={styles.summaryCard}>
+              <strong>Cennik</strong>
+              <div style={styles.helper}>{selected.price ? "skonfigurowany" : "brak"}</div>
+            </div>
+            <div style={styles.summaryCard}>
+              <strong>Typ</strong>
+              <div style={styles.helper}>{pl(PL.parkingType, selected.parkingType)}</div>
+            </div>
+          </div>
+
+          {/* Obłożenie */}
+          <form style={{ ...styles.formGrid, marginTop: "24px" }} onSubmit={(e) => void submitOccupancy(e)}>
+            <h3 style={{ margin: 0 }}>Obłożenie ogólne</h3>
+            <div className="admin-form-row" style={styles.formRow}>
+              <label style={styles.field}>
+                <span style={styles.label}>Zajęte miejsca</span>
+                <input style={styles.input} type="number" min="0" max={selected.totalSpots}
+                  value={occupancyValue} onChange={(e) => setOccupancyValue(e.target.value)} />
+              </label>
+              <div style={{ display: "flex", alignItems: "flex-end" }}>
+                <button type="submit" style={styles.button}>Zapisz obłożenie</button>
               </div>
             </div>
+          </form>
 
-            {/* Occupancy */}
-            <form style={{ ...styles.formGrid, marginTop: "16px" }} onSubmit={(e) => void submitOccupancy(e)}>
-              <div style={styles.formRow}>
+          {/* Kategorie miejsc */}
+          <form style={{ ...styles.formGrid, marginTop: "24px" }} onSubmit={(e) => void submitSpots(e)}>
+            <h3 style={{ margin: 0 }}>Kategorie miejsc</h3>
+            {spotForms.map((spot, idx) => (
+              <div className="admin-form-row" style={styles.formRow} key={spot.category}>
                 <label style={styles.field}>
-                  <span style={styles.label}>Obłożenie</span>
-                  <input style={styles.input} type="number" min="0" max={selected.totalSpots} value={occupancyValue} onChange={(e) => setOccupancyValue(e.target.value)} />
+                  <span style={styles.label}>{pl(PL.spotCategory, spot.category)} — razem</span>
+                  <input style={styles.input} type="number" min="0" value={spot.total}
+                    onChange={(e) => setSpotForms((cur) => cur.map((s, i) => i === idx ? { ...s, total: e.target.value } : s))} />
+                </label>
+                <label style={styles.field}>
+                  <span style={styles.label}>{pl(PL.spotCategory, spot.category)} — zajęte</span>
+                  <input style={styles.input} type="number" min="0" value={spot.occupied}
+                    onChange={(e) => setSpotForms((cur) => cur.map((s, i) => i === idx ? { ...s, occupied: e.target.value } : s))} />
                 </label>
               </div>
-              <button type="submit" style={styles.button}>Zapisz obłożenie</button>
-            </form>
+            ))}
+            <div><button type="submit" style={styles.button}>Zapisz kategorie</button></div>
+          </form>
 
-            {/* Spots */}
-            <form style={{ ...styles.formGrid, marginTop: "16px" }} onSubmit={(e) => void submitSpots(e)}>
-              <h3 style={{ margin: 0 }}>Kategorie miejsc</h3>
-              {spotForms.map((spot, idx) => (
-                <div style={styles.formRow} key={spot.category}>
-                  <label style={styles.field}>
-                    <span style={styles.label}>{spot.category} total</span>
-                    <input style={styles.input} type="number" min="0" value={spot.total}
-                      onChange={(e) => setSpotForms((cur) => cur.map((s, i) => i === idx ? { ...s, total: e.target.value } : s))} />
-                  </label>
-                  <label style={styles.field}>
-                    <span style={styles.label}>{spot.category} zajęte</span>
-                    <input style={styles.input} type="number" min="0" value={spot.occupied}
-                      onChange={(e) => setSpotForms((cur) => cur.map((s, i) => i === idx ? { ...s, occupied: e.target.value } : s))} />
-                  </label>
-                </div>
-              ))}
-              <button type="submit" style={styles.button}>Zapisz kategorie</button>
-            </form>
-
-            {/* Price */}
-            <form style={{ ...styles.formGrid, marginTop: "16px" }} onSubmit={(e) => void submitPrice(e)}>
-              <h3 style={{ margin: 0 }}>Cennik</h3>
-              <div style={styles.summaryCard}>
-                <strong>Zakres</strong>
-                <div style={styles.helper}>
-                  {selected.parkingType === "PRIVATE" || selected.price?.parkingLotId
-                    ? "indywidualny cennik parkingu"
-                    : `cennik strefy ${selected.zone}`}
-                </div>
-              </div>
-              {(["firstHourPrice", "secondHourPrice", "thirdHourPrice", "nextHourPrice", "dailyPrice"] as const).map((field) => (
-                <label key={field} style={styles.field}>
-                  <span style={styles.label}>{field}</span>
-                  <input style={styles.input} type="number" min="0" step="0.01" value={priceForm[field]}
-                    onChange={(e) => setPriceForm((c) => ({ ...c, [field]: e.target.value }))} />
-                </label>
-              ))}
-              <button type="submit" style={styles.button}>Zapisz cennik</button>
-            </form>
-
-            {/* Owner assignment */}
-            <form style={{ ...styles.formGrid, marginTop: "16px" }} onSubmit={(e) => void submitOwner(e)}>
-              <h3 style={{ margin: 0 }}>Właściciel parkingu</h3>
+          {/* Cennik */}
+          <form style={{ ...styles.formGrid, marginTop: "24px" }} onSubmit={(e) => void submitPrice(e)}>
+            <h3 style={{ margin: 0 }}>Cennik</h3>
+            <div style={styles.summaryCard}>
+              <strong>Zakres</strong>
               <div style={styles.helper}>
-                Podaj ID użytkownika z rolą PARKING_OWNER. Pozostaw puste, aby usunąć właściciela.
+                {selected.parkingType === "PRIVATE" || selected.price?.parkingLotId
+                  ? "Indywidualny cennik parkingu"
+                  : `Cennik ${pl(PL.zone, selected.zone)}`}
               </div>
+            </div>
+            {(["firstHourPrice", "secondHourPrice", "thirdHourPrice", "nextHourPrice", "dailyPrice"] as const).map((field) => (
+              <label key={field} style={styles.field}>
+                <span style={styles.label}>{PL.priceField[field]}</span>
+                <input style={styles.input} type="number" min="0" step="0.01" value={priceForm[field]}
+                  onChange={(e) => setPriceForm((c) => ({ ...c, [field]: e.target.value }))} />
+              </label>
+            ))}
+            <div><button type="submit" style={styles.button}>Zapisz cennik</button></div>
+          </form>
+
+          {/* Właściciel */}
+          <form style={{ ...styles.formGrid, marginTop: "24px" }} onSubmit={(e) => void submitOwner(e)}>
+            <h3 style={{ margin: 0 }}>Właściciel parkingu</h3>
+            <p style={styles.helper}>
+              Podaj ID użytkownika z rolą Właściciel parkingu. Pozostaw puste, aby usunąć właściciela.
+            </p>
+            <div className="admin-form-row" style={styles.formRow}>
               <label style={styles.field}>
                 <span style={styles.label}>ID właściciela</span>
-                <input style={styles.input} type="number" min="1" value={ownerIdInput} onChange={(e) => setOwnerIdInput(e.target.value)} placeholder="np. 3" />
+                <input style={styles.input} type="number" min="1" value={ownerIdInput}
+                  onChange={(e) => setOwnerIdInput(e.target.value)} placeholder="np. 3" />
               </label>
-              <button type="submit" style={styles.button}>Przypisz właściciela</button>
-            </form>
-          </section>
-        ) : null}
-      </div>
+              <div style={{ display: "flex", alignItems: "flex-end" }}>
+                <button type="submit" style={styles.button}>Przypisz właściciela</button>
+              </div>
+            </div>
+          </form>
+        </section>
+      ) : null}
     </div>
   );
 }

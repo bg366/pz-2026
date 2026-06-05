@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import type { FormEvent } from "react";
 import { searchParkings } from "../api/client";
+
+const FUEL_LABELS: Record<string, string> = { PETROL: "Benzyna", DIESEL: "Diesel", LPG: "LPG", HYBRID: "Hybryda", ELECTRIC: "Elektryczny" };
+const EMISSION_LABELS: Record<string, string> = { EURO_1: "Euro 1", EURO_2: "Euro 2", EURO_3: "Euro 3", EURO_4: "Euro 4", EURO_5: "Euro 5", EURO_6: "Euro 6", ELECTRIC: "Elektryczny" };
 import type { FuelType, EmissionStandard, ParkingSearchResult, UserVehicle } from "../api/types";
 
 const ParkingMap = lazy(() => import("./ParkingMap"));
@@ -49,8 +52,8 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
       form.durationMinutes ? `Postój: ${form.durationMinutes} min` : null,
       form.onlyAvailable ? "Tylko wolne" : null,
       form.openNow ? "Otwarte teraz" : null,
-      form.fuelType ? `Paliwo: ${form.fuelType}` : null,
-      form.emissionStandard ? `Norma: ${form.emissionStandard}` : null
+      form.fuelType ? `Paliwo: ${FUEL_LABELS[form.fuelType] ?? form.fuelType}` : null,
+      form.emissionStandard ? `Norma: ${EMISSION_LABELS[form.emissionStandard] ?? form.emissionStandard}` : null
     ].filter(Boolean) as string[];
   }, [form]);
 
@@ -175,9 +178,9 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
             onChange={(event) => setForm((current) => ({ ...current, zone: event.target.value }))}
           >
             <option value="">Wszystkie</option>
-            <option value="ZONE_A">ZONE_A</option>
-            <option value="ZONE_B">ZONE_B</option>
-            <option value="ZONE_C">ZONE_C</option>
+            <option value="ZONE_A">Strefa A</option>
+            <option value="ZONE_B">Strefa B</option>
+            <option value="ZONE_C">Strefa C</option>
           </select>
         </label>
 
@@ -223,11 +226,11 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
             onChange={(event) => setForm((current) => ({ ...current, fuelType: event.target.value as FuelType | "" }))}
           >
             <option value="">Bez filtra</option>
-            <option value="PETROL">PETROL</option>
-            <option value="DIESEL">DIESEL</option>
+            <option value="PETROL">Benzyna</option>
+            <option value="DIESEL">Diesel</option>
             <option value="LPG">LPG</option>
-            <option value="HYBRID">HYBRID</option>
-            <option value="ELECTRIC">ELECTRIC</option>
+            <option value="HYBRID">Hybryda</option>
+            <option value="ELECTRIC">Elektryczny</option>
           </select>
         </label>
 
@@ -240,13 +243,13 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
             }
           >
             <option value="">Bez filtra</option>
-            <option value="EURO_1">EURO_1</option>
-            <option value="EURO_2">EURO_2</option>
-            <option value="EURO_3">EURO_3</option>
-            <option value="EURO_4">EURO_4</option>
-            <option value="EURO_5">EURO_5</option>
-            <option value="EURO_6">EURO_6</option>
-            <option value="ELECTRIC">ELECTRIC</option>
+            <option value="EURO_1">Euro 1</option>
+            <option value="EURO_2">Euro 2</option>
+            <option value="EURO_3">Euro 3</option>
+            <option value="EURO_4">Euro 4</option>
+            <option value="EURO_5">Euro 5</option>
+            <option value="EURO_6">Euro 6</option>
+            <option value="ELECTRIC">Elektryczny</option>
           </select>
         </label>
 
@@ -343,12 +346,12 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
 
             <dl className="details">
               <div><dt>Odległość</dt><dd>{result.distanceKm} km</dd></div>
-              <div><dt>Strefa</dt><dd>{result.zone}</dd></div>
+              <div><dt>Strefa</dt><dd>{result.zone === "ZONE_A" ? "Strefa A" : result.zone === "ZONE_B" ? "Strefa B" : "Strefa C"}</dd></div>
               <div><dt>Dostępne miejsca</dt><dd>{result.availableSpots}</dd></div>
               <div><dt>Miejsca regularne</dt><dd>{result.availableRegularSpots}</dd></div>
               <div><dt>Miejsca SCT</dt><dd>{result.availableSctSpots}</dd></div>
               <div><dt>Godziny</dt><dd>{result.openingHours}</dd></div>
-              <div><dt>Status</dt><dd>{result.status}</dd></div>
+              <div><dt>Status</dt><dd>{result.status === "ACTIVE" ? "Aktywny" : result.status === "INACTIVE" ? "Nieaktywny" : "Tymcz. zamknięty"}</dd></div>
               <div>
                 <dt>Cena</dt>
                 <dd>
@@ -365,7 +368,7 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
                     : "Podaj czas postoju"}
                 </dd>
               </div>
-              <div><dt>Typ parkingu</dt><dd>{result.parkingType}</dd></div>
+              <div><dt>Typ parkingu</dt><dd>{result.parkingType === "PUBLIC" ? "Publiczny" : result.parkingType === "PRIVATE" ? "Prywatny" : result.parkingType === "PARK_AND_RIDE" ? "Park & Ride" : "Podziemny"}</dd></div>
               <div><dt>Status SCT</dt><dd>{result.permissionReason}</dd></div>
             </dl>
 
