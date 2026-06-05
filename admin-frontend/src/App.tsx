@@ -17,6 +17,42 @@ type AuthState = {
   token: string;
 };
 
+type UserRole = "ADMIN" | "USER";
+type UserStatus = "ACTIVE" | "BLOCKED" | "DELETED";
+
+type AdminVehicle = {
+  id: number;
+  brand: string;
+  model: string;
+  registrationNumber: string;
+  fuelType: string;
+  emissionStandard: string;
+  productionYear: number;
+  vehicleType: string;
+  sctCompliant: boolean;
+  active: boolean;
+};
+
+type AdminUser = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: UserRole;
+  status: UserStatus;
+  vehicleCount: number;
+  activeVehicleRegistration: string | null;
+};
+
+type AdminUserDetails = Omit<AdminUser, "vehicleCount" | "activeVehicleRegistration"> & {
+  vehicles: AdminVehicle[];
+};
+
+type PasswordResetResponse = {
+  userId: number;
+  temporaryPassword: string;
+};
+
 type Price = {
   id: number;
   zone: "ZONE_A" | "ZONE_B" | "ZONE_C" | null;
@@ -363,6 +399,10 @@ export default function App() {
   const [sctRules, setSctRules] = useState<SctRule[]>([]);
   const [ruleForm, setRuleForm] = useState<SctRuleForm>(emptyRuleForm);
 
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [selectedUser, setSelectedUser] = useState<AdminUserDetails | null>(null);
+  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
+
   const selectedParkingSummary = useMemo(() => {
     if (!selectedParking) {
       return null;
@@ -423,6 +463,9 @@ export default function App() {
     setParkingLots([]);
     setSelectedParkingId(null);
     setSelectedParking(null);
+    setUsers([]);
+    setSelectedUser(null);
+    setTemporaryPassword(null);
   }
 
   async function loadParkingLots() {
@@ -485,10 +528,42 @@ export default function App() {
     }
   }
 
+  async function loadUsers() {
+    try {
+      const response = await fetch("/api/admin/users", {
+        headers: adminHeaders()
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const payload = (await response.json()) as AdminUser[];
+      setUsers(payload);
+      if (!selectedUser && payload.length > 0) {
+        await loadUserDetails(payload[0].id);
+      }
+    } catch (requestError) {
+      setParkingError(requestError instanceof Error ? requestError.message : "Could not load users.");
+    }
+  }
+
+  async function loadUserDetails(userId: number) {
+    const response = await fetch(`/api/admin/users/${userId}`, {
+      headers: adminHeaders()
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    setSelectedUser((await response.json()) as AdminUserDetails);
+    setTemporaryPassword(null);
+  }
+
   useEffect(() => {
     if (auth) {
       void loadParkingLots();
       void loadSctRules();
+      void loadUsers();
     }
   }, [auth]);
 
@@ -660,6 +735,57 @@ export default function App() {
     setStatusMessage("Usunięto regułę SCT.");
     setRuleForm(emptyRuleForm);
     await loadSctRules();
+  }
+
+  async function updateUserRole(userId: number, role: UserRole) {
+    const response = await fetch(`/api/admin/users/${userId}/role`, {
+      method: "PATCH",
+      headers: adminHeaders({
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({ role })
+    });
+
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+
+    setStatusMessage("Zmieniono role uzytkownika.");
+    await loadUsers();
+    await loadUserDetails(userId);
+  }
+
+  async function updateUserStatus(userId: number, status: UserStatus) {
+    const response = await fetch(`/api/admin/users/${userId}/status`, {
+      method: "PATCH",
+      headers: adminHeaders({
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({ status })
+    });
+
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+
+    setStatusMessage("Zmieniono status uzytkownika.");
+    await loadUsers();
+    await loadUserDetails(userId);
+  }
+
+  async function resetUserPassword(userId: number) {
+    const response = await fetch(`/api/admin/users/${userId}/password-reset`, {
+      method: "POST",
+      headers: adminHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+
+    const payload = (await response.json()) as PasswordResetResponse;
+    setTemporaryPassword(payload.temporaryPassword);
+    setStatusMessage("Wygenerowano haslo tymczasowe.");
   }
 
   async function withStatus(action: () => Promise<void>) {
@@ -1006,6 +1132,139 @@ export default function App() {
               </div>
             </section>
           </div>
+        </div>
+
+        <div style={{ ...styles.stack, marginTop: "24px" }}>
+          <section style={styles.card}>
+            <div style={styles.cardHeader}>
+              <div>
+                <h2 style={styles.sectionTitle}>Uzytkownicy</h2>
+                <p style={styles.helper}>
+                  Lista kont, role, statusy i pojazdy zapisane przez uzytkownikow.
+                </p>
+              </div>
+              <span style={styles.badge}>{users.length} kont</span>
+            </div>
+
+            <div style={styles.tableWrapper}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>Uzytkownik</th>
+                    <th style={styles.th}>Rola</th>
+                    <th style={styles.th}>Status</th>
+                    <th style={styles.th}>Pojazdy</th>
+                    <th style={styles.th}>Akcje</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((user) => (
+                    <tr key={user.id}>
+                      <td style={styles.td}>
+                        <strong>{user.firstName} {user.lastName}</strong>
+                        <div style={styles.helper}>{user.email}</div>
+                      </td>
+                      <td style={styles.td}>
+                        <select
+                          style={styles.input}
+                          value={user.role}
+                          onChange={(event) =>
+                            void withStatus(() => updateUserRole(user.id, event.target.value as UserRole))
+                          }
+                        >
+                          <option value="ADMIN">ADMIN</option>
+                          <option value="USER">USER</option>
+                        </select>
+                      </td>
+                      <td style={styles.td}>
+                        <select
+                          style={styles.input}
+                          value={user.status}
+                          onChange={(event) =>
+                            void withStatus(() => updateUserStatus(user.id, event.target.value as UserStatus))
+                          }
+                        >
+                          <option value="ACTIVE">ACTIVE</option>
+                          <option value="BLOCKED">BLOCKED</option>
+                          <option value="DELETED">DELETED</option>
+                        </select>
+                      </td>
+                      <td style={styles.td}>
+                        {user.vehicleCount}
+                        {user.activeVehicleRegistration ? (
+                          <div style={styles.helper}>Aktywny: {user.activeVehicleRegistration}</div>
+                        ) : null}
+                      </td>
+                      <td style={styles.td}>
+                        <div style={styles.actions}>
+                          <button
+                            type="button"
+                            style={styles.subtleButton}
+                            onClick={() => void withStatus(() => loadUserDetails(user.id))}
+                          >
+                            Szczegoly
+                          </button>
+                          <button
+                            type="button"
+                            style={styles.dangerButton}
+                            onClick={() => void withStatus(() => resetUserPassword(user.id))}
+                          >
+                            Reset hasla
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {temporaryPassword ? (
+              <div style={{ ...styles.feedback, ...styles.success, marginTop: "16px" }}>
+                Haslo tymczasowe: <strong>{temporaryPassword}</strong>
+              </div>
+            ) : null}
+
+            {selectedUser ? (
+              <div style={{ ...styles.summaryCard, marginTop: "20px" }}>
+                <strong>{selectedUser.firstName} {selectedUser.lastName}</strong>
+                <div style={styles.helper}>
+                  {selectedUser.email} - {selectedUser.role} - {selectedUser.status}
+                </div>
+                <div style={{ ...styles.tableWrapper, marginTop: "12px" }}>
+                  <table style={styles.table}>
+                    <thead>
+                      <tr>
+                        <th style={styles.th}>Pojazd</th>
+                        <th style={styles.th}>Rejestracja</th>
+                        <th style={styles.th}>SCT</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedUser.vehicles.map((vehicle) => (
+                        <tr key={vehicle.id}>
+                          <td style={styles.td}>
+                            <strong>{vehicle.brand} {vehicle.model}</strong>
+                            <div style={styles.helper}>{vehicle.fuelType} - {vehicle.emissionStandard}</div>
+                          </td>
+                          <td style={styles.td}>
+                            {vehicle.registrationNumber}
+                            {vehicle.active ? <div style={styles.helper}>aktywny</div> : null}
+                          </td>
+                          <td style={styles.td}>{vehicle.sctCompliant ? "Spelnia" : "Nie spelnia"}</td>
+                        </tr>
+                      ))}
+                      {selectedUser.vehicles.length === 0 ? (
+                        <tr>
+                          <td style={styles.td} colSpan={3}>Brak zapisanych pojazdow.</td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+          </section>
         </div>
 
         <div style={{ ...styles.stack, marginTop: "24px" }}>
