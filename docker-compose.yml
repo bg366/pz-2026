@@ -47,6 +47,9 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-parking_pass}
       REDIS_HOST: redis
       REDIS_PORT: ${REDIS_PORT:-6379}
+      PAYNOW_API_KEY: ${PAYNOW_API_KEY:-}
+      PAYNOW_SIGNATURE_KEY: ${PAYNOW_SIGNATURE_KEY:-}
+      PAYNOW_CONTINUE_URL: ${PAYNOW_CONTINUE_URL:-http://localhost/rezerwacje}
     ports:
       - "8080:8080"
     depends_on:
