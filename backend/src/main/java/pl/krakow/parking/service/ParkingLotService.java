@@ -27,10 +27,12 @@ import pl.krakow.parking.mapper.ParkingSpotMapper;
 import pl.krakow.parking.model.ParkingLot;
 import pl.krakow.parking.model.ParkingLotStatus;
 import pl.krakow.parking.model.ParkingPermission;
+import pl.krakow.parking.model.ParkingOccupancyHistory;
 import pl.krakow.parking.model.ParkingSpot;
 import pl.krakow.parking.model.Price;
 import pl.krakow.parking.model.SpotCategory;
 import pl.krakow.parking.repository.ParkingLotRepository;
+import pl.krakow.parking.repository.ParkingOccupancyHistoryRepository;
 import pl.krakow.parking.repository.PriceRepository;
 
 @Service
@@ -41,6 +43,7 @@ public class ParkingLotService {
 
     private final ParkingLotRepository parkingLotRepository;
     private final PriceRepository priceRepository;
+    private final ParkingOccupancyHistoryRepository occupancyHistoryRepository;
     private final ParkingLotMapper parkingLotMapper;
     private final ParkingSpotMapper parkingSpotMapper;
     private final SctVerificationService sctVerificationService;
@@ -48,12 +51,14 @@ public class ParkingLotService {
     public ParkingLotService(
         ParkingLotRepository parkingLotRepository,
         PriceRepository priceRepository,
+        ParkingOccupancyHistoryRepository occupancyHistoryRepository,
         ParkingLotMapper parkingLotMapper,
         ParkingSpotMapper parkingSpotMapper,
         SctVerificationService sctVerificationService
     ) {
         this.parkingLotRepository = parkingLotRepository;
         this.priceRepository = priceRepository;
+        this.occupancyHistoryRepository = occupancyHistoryRepository;
         this.parkingLotMapper = parkingLotMapper;
         this.parkingSpotMapper = parkingSpotMapper;
         this.sctVerificationService = sctVerificationService;
@@ -94,7 +99,9 @@ public class ParkingLotService {
     public ParkingLotResponse updateOccupancy(Long id, OccupancyUpdateRequest request) {
         ParkingLot parkingLot = getParkingLotEntity(id);
         parkingLot.setOccupiedSpots(Math.min(request.occupiedSpots(), parkingLot.getTotalSpots()));
-        return toParkingLotResponse(parkingLotRepository.save(parkingLot));
+        ParkingLot savedParkingLot = parkingLotRepository.save(parkingLot);
+        recordOccupancy(savedParkingLot);
+        return toParkingLotResponse(savedParkingLot);
     }
 
     @Transactional
@@ -164,7 +171,9 @@ public class ParkingLotService {
         parkingLot.setOccupiedSpots(occupiedSpots);
         parkingLot.setTotalSctSpots(totalSctSpots);
         parkingLot.setOccupiedSctSpots(occupiedSctSpots);
-        return toParkingLotResponse(parkingLotRepository.save(parkingLot));
+        ParkingLot savedParkingLot = parkingLotRepository.save(parkingLot);
+        recordOccupancy(savedParkingLot);
+        return toParkingLotResponse(savedParkingLot);
     }
 
     private ParkingSearchResponse toSearchResponse(ParkingLot parkingLot, ParkingSearchRequest request) {
@@ -344,6 +353,15 @@ public class ParkingLotService {
         if (occupiedSctSpots > totalSctSpots) {
             throw new IllegalArgumentException("Occupied SCT spots cannot exceed total SCT spots.");
         }
+    }
+
+    private void recordOccupancy(ParkingLot parkingLot) {
+        occupancyHistoryRepository.save(ParkingOccupancyHistory.builder()
+            .parkingLot(parkingLot)
+            .occupiedSpots(parkingLot.getOccupiedSpots())
+            .occupiedSctSpots(parkingLot.getOccupiedSctSpots())
+            .recordedAt(java.time.LocalDateTime.now())
+            .build());
     }
 
     private ParkingLot getParkingLotEntity(Long id) {

@@ -23,6 +23,7 @@ import pl.krakow.parking.model.ParkingLotStatus;
 import pl.krakow.parking.model.ParkingZone;
 import pl.krakow.parking.model.ParkingSearchSort;
 import pl.krakow.parking.repository.ParkingLotRepository;
+import pl.krakow.parking.repository.ParkingOccupancyHistoryRepository;
 import pl.krakow.parking.repository.PriceRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -35,6 +36,9 @@ class ParkingLotServiceTest {
 
     @Mock
     private PriceRepository priceRepository;
+
+    @Mock
+    private ParkingOccupancyHistoryRepository occupancyHistoryRepository;
 
     @Mock
     private ParkingLotMapper parkingLotMapper;
@@ -58,6 +62,7 @@ class ParkingLotServiceTest {
         ParkingLotService service = new ParkingLotService(
             parkingLotRepository,
             priceRepository,
+            occupancyHistoryRepository,
             parkingLotMapper,
             parkingSpotMapper,
             sctVerificationService
@@ -96,6 +101,7 @@ class ParkingLotServiceTest {
         ParkingLotService service = new ParkingLotService(
             parkingLotRepository,
             priceRepository,
+            occupancyHistoryRepository,
             parkingLotMapper,
             parkingSpotMapper,
             sctVerificationService

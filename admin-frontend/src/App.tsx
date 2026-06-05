@@ -53,6 +53,19 @@ type PasswordResetResponse = {
   temporaryPassword: string;
 };
 
+type OccupancyReport = {
+  parkingLotId: number;
+  parkingLotName: string;
+  occupiedSpots: number;
+  totalSpots: number;
+  availableSpots: number;
+  occupiedSctSpots: number;
+  totalSctSpots: number;
+  availableSctSpots: number;
+  occupancyPercent: number;
+  recordedAt: string;
+};
+
 type Price = {
   id: number;
   zone: "ZONE_A" | "ZONE_B" | "ZONE_C" | null;
@@ -412,6 +425,7 @@ export default function App() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<AdminUserDetails | null>(null);
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
+  const [occupancyReports, setOccupancyReports] = useState<OccupancyReport[]>([]);
 
   const selectedParkingSummary = useMemo(() => {
     if (!selectedParking) {
@@ -476,6 +490,7 @@ export default function App() {
     setUsers([]);
     setSelectedUser(null);
     setTemporaryPassword(null);
+    setOccupancyReports([]);
   }
 
   async function loadParkingLots() {
@@ -569,11 +584,23 @@ export default function App() {
     setTemporaryPassword(null);
   }
 
+  async function loadCurrentOccupancyReports() {
+    const response = await fetch("/api/admin/reports/occupancy/current", {
+      headers: adminHeaders()
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    setOccupancyReports((await response.json()) as OccupancyReport[]);
+  }
+
   useEffect(() => {
     if (auth) {
       void loadParkingLots();
       void loadSctRules();
       void loadUsers();
+      void withStatus(loadCurrentOccupancyReports);
     }
   }, [auth]);
 
@@ -1149,6 +1176,51 @@ export default function App() {
         </div>
 
         <div style={{ ...styles.stack, marginTop: "24px" }}>
+          <section style={styles.card}>
+            <div style={styles.cardHeader}>
+              <div>
+                <h2 style={styles.sectionTitle}>Raporty oblozenia</h2>
+                <p style={styles.helper}>Aktualny raport wolnych i zajetych miejsc dla parkingow.</p>
+              </div>
+              <button
+                type="button"
+                style={styles.subtleButton}
+                onClick={() => void withStatus(loadCurrentOccupancyReports)}
+              >
+                Odswiez
+              </button>
+            </div>
+
+            <div style={styles.tableWrapper}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>Parking</th>
+                    <th style={styles.th}>Oblozenie</th>
+                    <th style={styles.th}>SCT</th>
+                    <th style={styles.th}>Pomiar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {occupancyReports.map((report) => (
+                    <tr key={report.parkingLotId}>
+                      <td style={styles.td}><strong>{report.parkingLotName}</strong></td>
+                      <td style={styles.td}>
+                        {report.occupiedSpots} / {report.totalSpots}
+                        <div style={styles.helper}>{report.occupancyPercent}% zajete</div>
+                      </td>
+                      <td style={styles.td}>
+                        {report.occupiedSctSpots} / {report.totalSctSpots}
+                        <div style={styles.helper}>wolne SCT: {report.availableSctSpots}</div>
+                      </td>
+                      <td style={styles.td}>{new Date(report.recordedAt).toLocaleString("pl-PL")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
           <section style={styles.card}>
             <div style={styles.cardHeader}>
               <div>
