@@ -1,4 +1,4 @@
-﻿package pl.krakow.parking.service;
+package pl.krakow.parking.service;
 
 import java.math.BigDecimal;
 import java.time.Duration;
