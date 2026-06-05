@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import type { FormEvent } from "react";
 import { searchParkings } from "../api/client";
 import type { FuelType, EmissionStandard, ParkingSearchResult, UserVehicle } from "../api/types";
+
+const ParkingMap = lazy(() => import("./ParkingMap"));
 
 type ParkingSearchProps = {
   activeVehicle: UserVehicle | null;
@@ -28,6 +30,7 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "map">("list");
 
   useEffect(() => {
     if (!activeVehicle) return;
@@ -291,7 +294,37 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
         </div>
       ) : null}
 
-      <div className="results-grid">
+      {results.length > 0 ? (
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <span style={{ fontSize: "13px", color: "#6b7280" }}>{results.length} wyników</span>
+          <button
+            type="button"
+            className={viewMode === "list" ? "button" : "button button--ghost"}
+            onClick={() => setViewMode("list")}
+          >
+            Lista
+          </button>
+          <button
+            type="button"
+            className={viewMode === "map" ? "button" : "button button--ghost"}
+            onClick={() => setViewMode("map")}
+          >
+            Mapa
+          </button>
+        </div>
+      ) : null}
+
+      {viewMode === "map" && results.length > 0 ? (
+        <Suspense fallback={<div className="feedback feedback--empty">Ładowanie mapy...</div>}>
+          <ParkingMap
+            results={results}
+            centerLat={Number(form.lat)}
+            centerLng={Number(form.lng)}
+          />
+        </Suspense>
+      ) : null}
+
+      <div className="results-grid" style={viewMode === "map" ? { display: "none" } : undefined}>
         {results.map((result) => (
           <article key={result.id} className="result-card">
             <div className="result-card__header">
