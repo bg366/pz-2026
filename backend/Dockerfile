@@ -3,6 +3,7 @@ WORKDIR /app
 ENV GRADLE_WRAPPER_SKIP_DOCKER=1
 COPY gradle/ gradle/
 COPY gradlew gradle.properties build.gradle.kts settings.gradle.kts ./
+RUN sed -i 's/\r$//' gradlew && chmod +x gradlew
 RUN ./gradlew dependencies --no-daemon
 COPY src/ src/
 RUN ./gradlew bootJar --no-daemon
