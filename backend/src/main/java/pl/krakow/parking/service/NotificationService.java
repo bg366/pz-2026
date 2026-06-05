@@ -86,6 +86,28 @@ public class NotificationService {
         }
     }
 
+    @Transactional
+    public void createConfirmedNotification(Reservation reservation) {
+        if (notificationRepository.existsByReservationIdAndType(
+                reservation.getId(), NotificationType.RESERVATION_CONFIRMED)) {
+            return;
+        }
+        String message = String.format(
+            "Rezerwacja na parking \"%s\" (%s – %s) została potwierdzona. Dziękujemy za płatność!",
+            reservation.getParkingLot().getName(),
+            reservation.getStartsAt().toLocalDate(),
+            reservation.getEndsAt().toLocalDate()
+        );
+        Notification notification = Notification.builder()
+            .user(reservation.getUser())
+            .reservation(reservation)
+            .type(NotificationType.RESERVATION_CONFIRMED)
+            .message(message)
+            .read(false)
+            .build();
+        notificationRepository.save(notification);
+    }
+
     private NotificationResponse toResponse(Notification n) {
         return new NotificationResponse(
             n.getId(),
