@@ -2,19 +2,21 @@ import { useEffect, useState } from "react";
 import ParkingSearch from "./components/ParkingSearch";
 import UserAccount from "./components/UserAccount";
 import Reservations from "./components/Reservations";
+import ParkingSessions from "./components/ParkingSessions";
 import Notifications from "./components/Notifications";
 import OwnerPanel from "./components/OwnerPanel";
 import { readStoredAuth, getNotifications } from "./api/client";
 import type { AuthState, UserVehicle } from "./api/types";
 import VehicleCheck from "./components/VehicleCheck";
 
-type View = "parking" | "vehicle" | "profile" | "reservations" | "notifications" | "owner";
+type View = "parking" | "vehicle" | "profile" | "reservations" | "sessions" | "notifications" | "owner";
 
 const VIEW_ROUTES: Record<View, string> = {
   parking: "/wyszukiwarka",
   vehicle: "/sprawdz-auto",
   profile: "/profil",
   reservations: "/rezerwacje",
+  sessions: "/sesje",
   notifications: "/powiadomienia",
   owner: "/moje-parkingi"
 };
@@ -31,6 +33,7 @@ export default function App() {
   const [activeVehicle, setActiveVehicle] = useState<UserVehicle | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [reservationParkingLotId, setReservationParkingLotId] = useState<number | null>(null);
+  const [sessionParkingLotId, setSessionParkingLotId] = useState<number | null>(null);
 
   function navigate(nextView: View) {
     setView(nextView);
@@ -117,6 +120,13 @@ export default function App() {
           </button>
           <button
             type="button"
+            className={view === "sessions" ? "tab tab--active" : "tab"}
+            onClick={() => navigate("sessions")}
+          >
+            Sesje
+          </button>
+          <button
+            type="button"
             className={view === "notifications" ? "tab tab--active" : "tab"}
             onClick={() => { navigate("notifications"); setUnreadCount(0); }}
             style={{ position: "relative" }}
@@ -158,11 +168,17 @@ export default function App() {
                 setReservationParkingLotId(parkingLotId);
                 navigate("reservations");
               }}
+              onStartSession={(parkingLotId) => {
+                setSessionParkingLotId(parkingLotId);
+                navigate("sessions");
+              }}
             />
           ) : view === "vehicle" ? (
             <VehicleCheck activeVehicle={activeVehicle} />
           ) : view === "reservations" ? (
             <Reservations auth={auth} initialParkingId={reservationParkingLotId} />
+          ) : view === "sessions" ? (
+            <ParkingSessions auth={auth} initialParkingId={sessionParkingLotId} />
           ) : view === "notifications" ? (
             <Notifications auth={auth} />
           ) : view === "owner" ? (

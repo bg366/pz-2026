@@ -3,6 +3,7 @@ export type EmissionStandard = "EURO_1" | "EURO_2" | "EURO_3" | "EURO_4" | "EURO
 export type ParkingZone = "ZONE_A" | "ZONE_B" | "ZONE_C";
 export type ParkingPermission = "ALL_SPOTS" | "SCT_SPOTS_ONLY" | "NOT_ALLOWED";
 export type ParkingStatus = "ACTIVE" | "INACTIVE" | "TEMPORARILY_CLOSED" | "PENDING_APPROVAL";
+export type ParkingAccessType = "BARRIER" | "OPEN";
 
 export type AuthState = {
   email: string;
@@ -58,6 +59,7 @@ export type ParkingSearchResult = {
   pricePerHour: number | null;
   currency: string | null;
   parkingType: string;
+  accessType: ParkingAccessType;
 };
 
 export type VehicleCheckResponse = {
@@ -153,4 +155,25 @@ export type AppNotification = {
   read: boolean;
   reservationId: number | null;
   createdAt: string;
+};
+
+export type ParkingSessionStatus = "ACTIVE" | "PAYMENT_PENDING" | "PAID" | "CANCELLED";
+
+export type ParkingSession = {
+  id: number;
+  parkingLotId: number;
+  parkingLotName: string;
+  parkingLotAddress: string;
+  registrationNumber: string;
+  startedAt: string;
+  endedAt: string | null;
+  status: ParkingSessionStatus;
+  amount: number | null;
+  currency: string | null;
+  paymentToken: string | null;
+};
+
+export type StartSessionRequest = {
+  parkingLotId: number;
+  registrationNumber: string;
 };

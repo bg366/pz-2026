@@ -11,6 +11,7 @@ const ParkingMap = lazy(() => import("./ParkingMap"));
 type ParkingSearchProps = {
   activeVehicle: UserVehicle | null;
   onReserve: (parkingLotId: number) => void;
+  onStartSession?: (parkingLotId: number) => void;
 };
 
 const initialForm = {
@@ -28,7 +29,7 @@ const initialForm = {
   emissionStandard: "" as EmissionStandard | ""
 };
 
-export default function ParkingSearch({ activeVehicle, onReserve }: ParkingSearchProps) {
+export default function ParkingSearch({ activeVehicle, onReserve, onStartSession }: ParkingSearchProps) {
   const [form, setForm] = useState(initialForm);
   const [results, setResults] = useState<ParkingSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -384,6 +385,7 @@ function buildAppleMapsUrl(result: ParkingSearchResult) {
                 </dd>
               </div>
               <div><dt>Typ parkingu</dt><dd>{result.parkingType === "PUBLIC" ? "Publiczny" : result.parkingType === "PRIVATE" ? "Prywatny" : result.parkingType === "PARK_AND_RIDE" ? "Park & Ride" : "Podziemny"}</dd></div>
+              <div><dt>Dostęp</dt><dd>{result.accessType === "BARRIER" ? "Szlaban (rezerwacja opcjonalna)" : "Otwarty (opłata po wjeździe)"}</dd></div>
               <div><dt>Status SCT</dt><dd>{sctReasonLabel(result.permissionReason)}</dd></div>
             </dl>
 
@@ -404,14 +406,37 @@ function buildAppleMapsUrl(result: ParkingSearchResult) {
               >
                 Apple Maps
               </a>
-              <button
-                type="button"
-                className="button"
-                onClick={() => onReserve(result.id)}
-                disabled={result.availableSpots <= 0}
-              >
-                Rezerwuj
-              </button>
+              {result.accessType === "BARRIER" ? (
+                <>
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => onReserve(result.id)}
+                    disabled={result.availableSpots <= 0}
+                    title="Zarezerwuj miejsce z wyprzedzeniem"
+                  >
+                    Zarezerwuj
+                  </button>
+                  <button
+                    type="button"
+                    className="button button--ghost"
+                    onClick={() => onStartSession?.(result.id)}
+                    disabled={result.availableSpots <= 0}
+                    title="Wjedź bez rezerwacji — zapłać przy wyjściu"
+                  >
+                    Wjedź teraz
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="button"
+                  style={{ background: "#0891b2", borderColor: "#0891b2" }}
+                  onClick={() => onStartSession?.(result.id)}
+                >
+                  Rozpocznij pobyt
+                </button>
+              )}
             </div>
           </article>
         ))}

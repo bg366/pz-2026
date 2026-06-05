@@ -1,4 +1,4 @@
-import type { AuthState, UserVehicle, UserVehicleRequest, ParkingSearchResult, VehicleCheckResponse, Reservation, ReservationRequest, AppNotification, OwnerParkingCreateRequest, OwnerParkingLot, PriceForm } from "./types";
+import type { AuthState, UserVehicle, UserVehicleRequest, ParkingSearchResult, VehicleCheckResponse, Reservation, ReservationRequest, AppNotification, OwnerParkingCreateRequest, OwnerParkingLot, PriceForm, ParkingSession, StartSessionRequest } from "./types";
 
 export const AUTH_STORAGE_KEY = "krakow-parking-user-auth";
 
@@ -204,6 +204,14 @@ export async function cancelReservation(id: number): Promise<Reservation> {
   return handleResponse<Reservation>(response);
 }
 
+export async function initiatePayment(token: string): Promise<{ status: string; redirectUrl: string | null }> {
+  const response = await fetch(`/api/me/payments/${token}/initiate`, {
+    method: "POST",
+    headers: authHeaders()
+  });
+  return handleResponse<{ status: string; redirectUrl: string | null }>(response);
+}
+
 export async function confirmPayment(token: string): Promise<{ status: string }> {
   const response = await fetch(`/api/me/payments/${token}/confirm`, {
     method: "POST",
@@ -289,6 +297,46 @@ export async function markNotificationRead(id: number): Promise<AppNotification>
     headers: authHeaders()
   });
   return handleResponse<AppNotification>(response);
+}
+
+// --- Parking sessions (OPEN parking) ---
+
+export async function getParkingSessions(): Promise<ParkingSession[]> {
+  const response = await fetch("/api/me/parking-sessions", { headers: authHeaders() });
+  return handleResponse<ParkingSession[]>(response);
+}
+
+export async function startParkingSession(data: StartSessionRequest): Promise<ParkingSession> {
+  const response = await fetch("/api/me/parking-sessions", {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(data)
+  });
+  return handleResponse<ParkingSession>(response);
+}
+
+export async function requestSessionPayment(sessionId: number): Promise<ParkingSession> {
+  const response = await fetch(`/api/me/parking-sessions/${sessionId}/pay`, {
+    method: "POST",
+    headers: authHeaders()
+  });
+  return handleResponse<ParkingSession>(response);
+}
+
+export async function confirmSessionPayment(token: string): Promise<ParkingSession> {
+  const response = await fetch(`/api/me/parking-sessions/confirm/${token}`, {
+    method: "POST",
+    headers: authHeaders()
+  });
+  return handleResponse<ParkingSession>(response);
+}
+
+export async function cancelParkingSession(sessionId: number): Promise<ParkingSession> {
+  const response = await fetch(`/api/me/parking-sessions/${sessionId}`, {
+    method: "DELETE",
+    headers: authHeaders()
+  });
+  return handleResponse<ParkingSession>(response);
 }
 
 // --- Vehicle check (SCT) ---
