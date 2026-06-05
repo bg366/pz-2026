@@ -18,11 +18,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import pl.krakow.parking.config.SecurityConfig;
 import pl.krakow.parking.dto.ParkingSearchResponse;
-import pl.krakow.parking.dto.TariffResponse;
 import pl.krakow.parking.exception.GlobalExceptionHandler;
 import pl.krakow.parking.model.ParkingZone;
 import pl.krakow.parking.service.ParkingLotService;
-import pl.krakow.parking.service.TariffService;
 
 @WebMvcTest(PublicParkingController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -34,9 +32,6 @@ class PublicParkingControllerTest {
 
     @MockBean
     private ParkingLotService parkingLotService;
-
-    @MockBean
-    private TariffService tariffService;
 
     @Test
     void shouldReturnParkingSearchResults() throws Exception {
