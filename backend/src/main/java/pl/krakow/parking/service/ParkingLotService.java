@@ -26,6 +26,7 @@ import pl.krakow.parking.mapper.ParkingLotMapper;
 import pl.krakow.parking.mapper.ParkingSpotMapper;
 import pl.krakow.parking.model.ParkingLot;
 import pl.krakow.parking.model.ParkingLotStatus;
+import pl.krakow.parking.model.ParkingPermission;
 import pl.krakow.parking.model.ParkingSpot;
 import pl.krakow.parking.model.Price;
 import pl.krakow.parking.model.SpotCategory;
@@ -108,6 +109,7 @@ public class ParkingLotService {
             .stream()
             .filter(parkingLot -> parkingLot.getStatus() == ParkingLotStatus.ACTIVE)
             .map(parkingLot -> toSearchResponse(parkingLot, request))
+            .filter(response -> response.parkingPermission() != ParkingPermission.NOT_ALLOWED)
             .filter(response -> matchesPrice(response, request.maxPricePerHour()))
             .toList();
     }
@@ -164,6 +166,10 @@ public class ParkingLotService {
         Price price = findEffectivePrice(parkingLot);
         boolean sctAllowed = request.fuelType() == null || request.emissionStandard() == null
             || sctVerificationService.canEnter(request.fuelType(), request.emissionStandard(), parkingLot.getZone());
+        int availableSpots = parkingLot.getTotalSpots() - parkingLot.getOccupiedSpots();
+        int availableSctSpots = parkingLot.getTotalSctSpots() - parkingLot.getOccupiedSctSpots();
+        int availableRegularSpots = availableSpots - availableSctSpots;
+        ParkingDecision parkingDecision = resolveParkingPermission(request, sctAllowed, availableSctSpots);
 
         BigDecimal pricePerHour = price != null ? price.getFirstHourPrice() : null;
         String currency = price != null ? CURRENCY : null;
@@ -179,8 +185,11 @@ public class ParkingLotService {
             parkingLot.getLocation().getX(),
             calculateDistanceKm(request.lat(), request.lng(), parkingLot.getLocation()),
             sctAllowed,
-            parkingLot.getTotalSpots() - parkingLot.getOccupiedSpots(),
-            parkingLot.getTotalSctSpots() - parkingLot.getOccupiedSctSpots(),
+            availableSpots,
+            Math.max(availableRegularSpots, 0),
+            availableSctSpots,
+            parkingDecision.permission(),
+            parkingDecision.reason(),
             parkingLot.getOpeningHours(),
             pricePerHour,
             currency,
@@ -240,6 +249,35 @@ public class ParkingLotService {
             return true;
         }
         return response.pricePerHour().compareTo(maxPricePerHour) <= 0;
+    }
+
+    private ParkingDecision resolveParkingPermission(
+        ParkingSearchRequest request,
+        boolean sctAllowed,
+        int availableSctSpots
+    ) {
+        if (request.fuelType() == null || request.emissionStandard() == null) {
+            return new ParkingDecision(ParkingPermission.ALL_SPOTS, "No vehicle SCT data was provided.");
+        }
+
+        if (sctAllowed) {
+            return new ParkingDecision(ParkingPermission.ALL_SPOTS, "Vehicle meets SCT requirements.");
+        }
+
+        if (availableSctSpots > 0) {
+            return new ParkingDecision(
+                ParkingPermission.SCT_SPOTS_ONLY,
+                "Vehicle does not meet general SCT requirements; only designated SCT spots are available."
+            );
+        }
+
+        return new ParkingDecision(
+            ParkingPermission.NOT_ALLOWED,
+            "Vehicle does not meet SCT requirements and there are no designated SCT spots available."
+        );
+    }
+
+    private record ParkingDecision(ParkingPermission permission, String reason) {
     }
 
     private void validateSctOccupancy(Integer totalSctSpots, Integer occupiedSctSpots) {

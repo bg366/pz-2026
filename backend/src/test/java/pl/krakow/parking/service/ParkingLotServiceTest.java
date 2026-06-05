@@ -16,6 +16,8 @@ import pl.krakow.parking.dto.ParkingSearchRequest;
 import pl.krakow.parking.dto.ParkingSearchResponse;
 import pl.krakow.parking.mapper.ParkingLotMapper;
 import pl.krakow.parking.mapper.ParkingSpotMapper;
+import pl.krakow.parking.model.EmissionStandard;
+import pl.krakow.parking.model.FuelType;
 import pl.krakow.parking.model.ParkingLot;
 import pl.krakow.parking.model.ParkingLotStatus;
 import pl.krakow.parking.model.ParkingZone;
@@ -67,7 +69,42 @@ class ParkingLotServiceTest {
         assertThat(responses).extracting(ParkingSearchResponse::name).containsExactly("Aktywny");
     }
 
+    @Test
+    void shouldNotRecommendParkingWhenVehicleFailsSctAndNoSctSpotsAreAvailable() {
+        ParkingLot parkingLot = parkingLot(1L, "Bez SCT", ParkingLotStatus.ACTIVE, 0, 0);
+
+        given(parkingLotRepository.findNearby(50.0615, 19.9370, 5000.0d)).willReturn(List.of(parkingLot));
+        given(priceRepository.findByParkingLotId(1L)).willReturn(Optional.empty());
+        given(priceRepository.findByZoneCode(ParkingZone.ZONE_A)).willReturn(Optional.empty());
+        given(sctVerificationService.canEnter(FuelType.DIESEL, EmissionStandard.EURO_3, ParkingZone.ZONE_A))
+            .willReturn(false);
+
+        ParkingLotService service = new ParkingLotService(
+            parkingLotRepository,
+            priceRepository,
+            parkingLotMapper,
+            parkingSpotMapper,
+            sctVerificationService
+        );
+
+        List<ParkingSearchResponse> responses = service.searchNearby(
+            new ParkingSearchRequest(50.0615, 19.9370, 5, FuelType.DIESEL, EmissionStandard.EURO_3, null)
+        );
+
+        assertThat(responses).isEmpty();
+    }
+
     private ParkingLot parkingLot(Long id, String name, ParkingLotStatus status) {
+        return parkingLot(id, name, status, 10, 2);
+    }
+
+    private ParkingLot parkingLot(
+        Long id,
+        String name,
+        ParkingLotStatus status,
+        int totalSctSpots,
+        int occupiedSctSpots
+    ) {
         return ParkingLot.builder()
             .id(id)
             .name(name)
@@ -78,8 +115,8 @@ class ParkingLotServiceTest {
             .location(GEOMETRY_FACTORY.createPoint(new Coordinate(19.9370, 50.0615)))
             .totalSpots(100)
             .occupiedSpots(25)
-            .totalSctSpots(10)
-            .occupiedSctSpots(2)
+            .totalSctSpots(totalSctSpots)
+            .occupiedSctSpots(occupiedSctSpots)
             .openingHours("24/7")
             .parkingType("PUBLIC")
             .build();

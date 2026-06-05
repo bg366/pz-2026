@@ -25,7 +25,10 @@ type SearchResult = {
   distanceKm: number;
   sctAllowed: boolean;
   availableSpots: number;
+  availableRegularSpots: number;
   availableSctSpots: number;
+  parkingPermission: "ALL_SPOTS" | "SCT_SPOTS_ONLY" | "NOT_ALLOWED";
+  permissionReason: string;
   openingHours: string;
   pricePerHour: number | null;
   currency: string | null;
@@ -278,7 +281,11 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
                 <p>{result.address}</p>
               </div>
               <span className={result.sctAllowed ? "badge badge--success" : "badge badge--danger"}>
-                {result.sctAllowed ? "Wjazd dozwolony" : "Wjazd zakazany"}
+                {result.parkingPermission === "ALL_SPOTS"
+                  ? "Wszystkie miejsca"
+                  : result.parkingPermission === "SCT_SPOTS_ONLY"
+                    ? "Tylko SCT"
+                    : "Brak parkowania"}
               </span>
             </div>
 
@@ -294,6 +301,10 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
               <div>
                 <dt>Dostępne miejsca</dt>
                 <dd>{result.availableSpots}</dd>
+              </div>
+              <div>
+                <dt>Miejsca regularne</dt>
+                <dd>{result.availableRegularSpots}</dd>
               </div>
               <div>
                 <dt>Miejsca SCT</dt>
@@ -321,7 +332,7 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
               </div>
               <div>
                 <dt>Status SCT</dt>
-                <dd>{result.sctAllowed ? "Spełnia filtr" : "Nie spełnia filtra"}</dd>
+                <dd>{result.permissionReason}</dd>
               </div>
             </dl>
 

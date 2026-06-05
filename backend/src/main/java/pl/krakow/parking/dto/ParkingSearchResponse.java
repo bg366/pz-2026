@@ -2,6 +2,7 @@ package pl.krakow.parking.dto;
 
 import java.math.BigDecimal;
 import pl.krakow.parking.model.ParkingLotStatus;
+import pl.krakow.parking.model.ParkingPermission;
 import pl.krakow.parking.model.ParkingZone;
 
 public record ParkingSearchResponse(
@@ -16,7 +17,10 @@ public record ParkingSearchResponse(
     Double distanceKm,
     Boolean sctAllowed,
     Integer availableSpots,
+    Integer availableRegularSpots,
     Integer availableSctSpots,
+    ParkingPermission parkingPermission,
+    String permissionReason,
     String openingHours,
     BigDecimal pricePerHour,
     String currency,
