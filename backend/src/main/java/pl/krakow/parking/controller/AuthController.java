@@ -35,7 +35,7 @@ public class AuthController {
 
     @PostMapping("/logout")
     public void logout() {
-        // Stateless HTTP Basic logout is handled client-side by removing stored credentials.
+        // Stateless JWT logout is handled client-side by removing the stored token.
     }
 
     @GetMapping("/me")

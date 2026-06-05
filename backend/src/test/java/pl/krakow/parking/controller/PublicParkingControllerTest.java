@@ -54,7 +54,7 @@ class PublicParkingControllerTest {
                     25,
                     5,
                     ParkingPermission.ALL_SPOTS,
-                    "Vehicle meets SCT requirements.",
+                    "Pojazd spełnia wymagania SCT.",
                     "24/7",
                     null,
                     null,

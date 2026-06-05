@@ -1,7 +1,5 @@
 package pl.krakow.parking.service;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.HashSet;
 import java.util.Set;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -19,6 +17,7 @@ import pl.krakow.parking.model.User;
 import pl.krakow.parking.model.UserRole;
 import pl.krakow.parking.model.UserStatus;
 import pl.krakow.parking.repository.UserRepository;
+import pl.krakow.parking.security.JwtService;
 
 @Service
 public class AuthService {
@@ -26,15 +25,18 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
+    private final JwtService jwtService;
 
     public AuthService(
         UserRepository userRepository,
         PasswordEncoder passwordEncoder,
-        AuthenticationManager authenticationManager
+        AuthenticationManager authenticationManager,
+        JwtService jwtService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
+        this.jwtService = jwtService;
     }
 
     @Transactional
@@ -53,7 +55,7 @@ public class AuthService {
             .build();
 
         User savedUser = userRepository.save(user);
-        return toAuthResponse(savedUser, request.password());
+        return toAuthResponse(savedUser);
     }
 
     @Transactional(readOnly = true)
@@ -62,7 +64,7 @@ public class AuthService {
             new UsernamePasswordAuthenticationToken(request.email(), request.password())
         );
         User user = getActiveUser(authentication.getName());
-        return toAuthResponse(user, request.password());
+        return toAuthResponse(user);
     }
 
     @Transactional(readOnly = true)
@@ -79,14 +81,14 @@ public class AuthService {
         return user;
     }
 
-    private AuthResponse toAuthResponse(User user, String rawPassword) {
+    private AuthResponse toAuthResponse(User user) {
         return new AuthResponse(
             user.getId(),
             user.getFirstName(),
             user.getLastName(),
             user.getEmail(),
             user.getRoles(),
-            Base64.getEncoder().encodeToString((user.getEmail() + ":" + rawPassword).getBytes(StandardCharsets.UTF_8))
+            jwtService.generateToken(user)
         );
     }
 

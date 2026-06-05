@@ -16,6 +16,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 import pl.krakow.parking.config.SecurityConfig;
 import pl.krakow.parking.service.ParkingLotService;
+import pl.krakow.parking.service.PriceService;
 
 @WebMvcTest(OwnerParkingController.class)
 @Import(SecurityConfig.class)
@@ -26,6 +27,9 @@ class OwnerSecurityTest {
 
     @MockBean
     private ParkingLotService parkingLotService;
+
+    @MockBean
+    private PriceService priceService;
 
     @Test
     void shouldRejectAnonymousAccessToOwnerEndpoints() throws Exception {

@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import pl.krakow.parking.dto.UserProfileResponse;
 import pl.krakow.parking.dto.UserProfileUpdateRequest;
+import pl.krakow.parking.dto.AuthResponse;
+import pl.krakow.parking.dto.UserPasswordChangeRequest;
 import pl.krakow.parking.dto.UserVehicleRequest;
 import pl.krakow.parking.dto.UserVehicleResponse;
 import pl.krakow.parking.service.UserProfileService;
@@ -39,6 +41,14 @@ public class UserProfileController {
         @Valid @RequestBody UserProfileUpdateRequest request
     ) {
         return userProfileService.updateProfile(principal.getName(), request);
+    }
+
+    @PutMapping("/password")
+    public AuthResponse changePassword(
+        Principal principal,
+        @Valid @RequestBody UserPasswordChangeRequest request
+    ) {
+        return userProfileService.changePassword(principal.getName(), request);
     }
 
     @GetMapping("/vehicles")

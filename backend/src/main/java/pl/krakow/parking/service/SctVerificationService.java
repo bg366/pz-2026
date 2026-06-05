@@ -67,22 +67,22 @@ public class SctVerificationService {
         if (!hasFuelAndEmission(fuelType, emissionStandard)) {
             return new VehicleCheckResponse(
                 false,
-                "Provide registrationNumber or both fuelType and emissionStandard."
+                "Podaj numer rejestracyjny albo typ paliwa oraz normę emisji."
             );
         }
 
         List<SctRule> activeRules = sctRuleRepository.findActiveRules(zone, fuelType, LocalDate.now());
         if (activeRules.isEmpty()) {
-            return new VehicleCheckResponse(true, "No active SCT restriction was found for the selected zone.");
+            return new VehicleCheckResponse(true, "Dla wybranej strefy nie znaleziono aktywnego ograniczenia SCT.");
         }
 
         SctRule rule = activeRules.getFirst();
         if (Boolean.FALSE.equals(rule.getAllowed())) {
-            return new VehicleCheckResponse(false, "Entry is not allowed for this fuel type in the selected zone.");
+            return new VehicleCheckResponse(false, "Wjazd dla tego typu paliwa w wybranej strefie jest niedozwolony.");
         }
 
         if (fuelType == FuelType.ELECTRIC || emissionStandard == EmissionStandard.ELECTRIC) {
-            return new VehicleCheckResponse(true, "Vehicle is electric, so entry is allowed.");
+            return new VehicleCheckResponse(true, "Pojazd jest elektryczny, więc wjazd jest dozwolony.");
         }
 
         if (emissionStandard.isAtLeast(rule.getMinEmissionStandard())) {
@@ -110,8 +110,8 @@ public class SctVerificationService {
             case PETROL -> "Benzyna";
             case DIESEL -> "Diesel";
             case LPG -> "LPG";
-            case HYBRID -> "Hybrid";
-            case ELECTRIC -> "Electric";
+            case HYBRID -> "Hybryda";
+            case ELECTRIC -> "Elektryczny";
         };
     }
 

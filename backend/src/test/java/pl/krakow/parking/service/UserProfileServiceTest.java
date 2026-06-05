@@ -10,10 +10,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import pl.krakow.parking.dto.AuthResponse;
+import pl.krakow.parking.dto.UserPasswordChangeRequest;
 import pl.krakow.parking.dto.UserVehicleRequest;
 import pl.krakow.parking.dto.UserVehicleResponse;
 import pl.krakow.parking.model.EmissionStandard;
@@ -25,6 +28,7 @@ import pl.krakow.parking.model.UserStatus;
 import pl.krakow.parking.model.Vehicle;
 import pl.krakow.parking.repository.UserRepository;
 import pl.krakow.parking.repository.VehicleRepository;
+import pl.krakow.parking.security.JwtService;
 
 @ExtendWith(MockitoExtension.class)
 class UserProfileServiceTest {
@@ -37,6 +41,12 @@ class UserProfileServiceTest {
 
     @Mock
     private SctVerificationService sctVerificationService;
+
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private JwtService jwtService;
 
     @Test
     void shouldCreateActiveVehicleAndDeactivateExistingVehicles() {
@@ -61,7 +71,9 @@ class UserProfileServiceTest {
         UserProfileService service = new UserProfileService(
             userRepository,
             vehicleRepository,
-            sctVerificationService
+            sctVerificationService,
+            passwordEncoder,
+            jwtService
         );
 
         UserVehicleResponse response = service.createVehicle(email, request);
@@ -88,7 +100,9 @@ class UserProfileServiceTest {
         UserProfileService service = new UserProfileService(
             userRepository,
             vehicleRepository,
-            sctVerificationService
+            sctVerificationService,
+            passwordEncoder,
+            jwtService
         );
 
         assertThatThrownBy(() -> service.updateVehicle(email, 10L, request))
@@ -96,6 +110,55 @@ class UserProfileServiceTest {
             .hasMessage("Vehicle with this registration number already exists.");
 
         verify(vehicleRepository).findByIdAndUserEmailIgnoreCase(10L, email);
+    }
+
+    @Test
+    void shouldChangePasswordAndReturnUpdatedAuthToken() {
+        String email = "user@krakow-parking.local";
+        User user = user();
+        UserPasswordChangeRequest request = new UserPasswordChangeRequest("Old12345!", "New12345!", "New12345!");
+
+        given(userRepository.findByEmailIgnoreCase(email)).willReturn(Optional.of(user));
+        given(passwordEncoder.matches("Old12345!", user.getPasswordHash())).willReturn(true);
+        given(passwordEncoder.matches("New12345!", user.getPasswordHash())).willReturn(false);
+        given(passwordEncoder.encode("New12345!")).willReturn("new-hash");
+        given(userRepository.save(user)).willReturn(user);
+        given(jwtService.generateToken(user)).willReturn("jwt-token");
+
+        UserProfileService service = new UserProfileService(
+            userRepository,
+            vehicleRepository,
+            sctVerificationService,
+            passwordEncoder,
+            jwtService
+        );
+
+        AuthResponse response = service.changePassword(email, request);
+
+        assertThat(user.getPasswordHash()).isEqualTo("new-hash");
+        assertThat(response.token()).isEqualTo("jwt-token");
+    }
+
+    @Test
+    void shouldRejectPasswordChangeWhenCurrentPasswordIsInvalid() {
+        String email = "user@krakow-parking.local";
+        User user = user();
+        UserPasswordChangeRequest request = new UserPasswordChangeRequest("Bad12345!", "New12345!", "New12345!");
+
+        given(userRepository.findByEmailIgnoreCase(email)).willReturn(Optional.of(user));
+        given(passwordEncoder.matches("Bad12345!", user.getPasswordHash())).willReturn(false);
+
+        UserProfileService service = new UserProfileService(
+            userRepository,
+            vehicleRepository,
+            sctVerificationService,
+            passwordEncoder,
+            jwtService
+        );
+
+        assertThatThrownBy(() -> service.changePassword(email, request))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Aktualne hasło jest nieprawidłowe.");
     }
 
     private UserVehicleRequest request(String registrationNumber, boolean active) {

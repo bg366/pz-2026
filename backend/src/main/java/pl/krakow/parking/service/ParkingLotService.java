@@ -13,6 +13,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pl.krakow.parking.dto.OccupancyUpdateRequest;
+import pl.krakow.parking.dto.OwnerParkingCreateRequest;
 import pl.krakow.parking.dto.ParkingLotCreateRequest;
 import pl.krakow.parking.dto.ParkingLotResponse;
 import pl.krakow.parking.dto.ParkingSpotRequest;
@@ -114,6 +115,29 @@ public class ParkingLotService {
     public void delete(Long id) {
         ParkingLot parkingLot = getParkingLotEntity(id);
         parkingLotRepository.delete(parkingLot);
+    }
+
+    @Transactional
+    public ParkingLotResponse createForOwner(OwnerParkingCreateRequest request, String ownerEmail) {
+        User owner = userRepository.findByEmailIgnoreCase(ownerEmail)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found: " + ownerEmail));
+        int sctSpots = request.totalSctSpots() != null ? request.totalSctSpots() : 0;
+        ParkingLot parkingLot = ParkingLot.builder()
+            .name(request.name())
+            .address(request.address())
+            .description(request.description())
+            .status(ParkingLotStatus.PENDING_APPROVAL)
+            .zone(request.zone())
+            .location(createPoint(request.longitude(), request.latitude()))
+            .totalSpots(request.totalSpots())
+            .occupiedSpots(0)
+            .totalSctSpots(sctSpots)
+            .occupiedSctSpots(0)
+            .openingHours(request.openingHours())
+            .parkingType(request.parkingType())
+            .owner(owner)
+            .build();
+        return toParkingLotResponse(parkingLotRepository.save(parkingLot));
     }
 
     @Transactional(readOnly = true)
@@ -360,6 +384,7 @@ public class ParkingLotService {
                 Comparator.nullsLast(BigDecimal::compareTo)
             );
             case AVAILABLE_SPOTS -> Comparator.comparing(ParkingSearchResponse::availableSpots).reversed();
+            case ID -> Comparator.comparing(ParkingSearchResponse::id);
             case DISTANCE -> Comparator.comparing(ParkingSearchResponse::distanceKm);
         };
     }
@@ -401,23 +426,23 @@ public class ParkingLotService {
         int availableSctSpots
     ) {
         if (request.fuelType() == null || request.emissionStandard() == null) {
-            return new ParkingDecision(ParkingPermission.ALL_SPOTS, "No vehicle SCT data was provided.");
+            return new ParkingDecision(ParkingPermission.ALL_SPOTS, "Nie podano danych pojazdu do weryfikacji SCT.");
         }
 
         if (sctAllowed) {
-            return new ParkingDecision(ParkingPermission.ALL_SPOTS, "Vehicle meets SCT requirements.");
+            return new ParkingDecision(ParkingPermission.ALL_SPOTS, "Pojazd spełnia wymagania SCT.");
         }
 
         if (availableSctSpots > 0) {
             return new ParkingDecision(
                 ParkingPermission.SCT_SPOTS_ONLY,
-                "Vehicle does not meet general SCT requirements; only designated SCT spots are available."
+                "Pojazd nie spełnia ogólnych wymagań SCT; dostępne są tylko wyznaczone miejsca SCT."
             );
         }
 
         return new ParkingDecision(
             ParkingPermission.NOT_ALLOWED,
-            "Vehicle does not meet SCT requirements and there are no designated SCT spots available."
+            "Pojazd nie spełnia wymagań SCT i nie ma dostępnych wyznaczonych miejsc SCT."
         );
     }
 

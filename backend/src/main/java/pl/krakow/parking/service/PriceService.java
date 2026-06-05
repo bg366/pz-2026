@@ -2,6 +2,7 @@ package pl.krakow.parking.service;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.AccessDeniedException;
 import pl.krakow.parking.dto.PriceResponse;
 import pl.krakow.parking.dto.PriceUpsertRequest;
 import pl.krakow.parking.exception.ResourceNotFoundException;
@@ -49,6 +50,22 @@ public class PriceService {
             .orElseThrow(() -> new ResourceNotFoundException(
                 "Parking lot with id %d was not found.".formatted(parkingLotId)
             ));
+        Price price = priceRepository.findByParkingLotId(parkingLotId)
+            .orElseGet(() -> Price.builder().parkingLot(parkingLot).build());
+
+        applyRequest(price, request);
+        return toResponse(priceRepository.save(price));
+    }
+
+    @Transactional
+    public PriceResponse upsertParkingPriceForOwner(Long parkingLotId, String ownerEmail, PriceUpsertRequest request) {
+        ParkingLot parkingLot = parkingLotRepository.findById(parkingLotId)
+            .orElseThrow(() -> new ResourceNotFoundException(
+                "Parking lot with id %d was not found.".formatted(parkingLotId)
+            ));
+        if (parkingLot.getOwner() == null || !parkingLot.getOwner().getEmail().equalsIgnoreCase(ownerEmail)) {
+            throw new AccessDeniedException("You are not the owner of parking lot %d.".formatted(parkingLotId));
+        }
         Price price = priceRepository.findByParkingLotId(parkingLotId)
             .orElseGet(() -> Price.builder().parkingLot(parkingLot).build());
 

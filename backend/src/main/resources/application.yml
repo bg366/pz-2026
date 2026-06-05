@@ -29,3 +29,8 @@ springdoc:
     path: /swagger-ui.html
   api-docs:
     path: /v3/api-docs
+
+security:
+  jwt:
+    secret: ${JWT_SECRET:krakow-parking-local-jwt-secret-change-in-production}
+    expiration-seconds: ${JWT_EXPIRATION_SECONDS:86400}

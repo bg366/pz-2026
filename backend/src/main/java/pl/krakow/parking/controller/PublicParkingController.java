@@ -40,7 +40,7 @@ public class PublicParkingController {
         @RequestParam(required = false) ParkingZone zone,
         @RequestParam(defaultValue = "false") boolean onlyAvailable,
         @RequestParam(defaultValue = "false") boolean openNow,
-        @RequestParam(defaultValue = "DISTANCE") ParkingSearchSort sort,
+        @RequestParam(defaultValue = "ID") ParkingSearchSort sort,
         @RequestParam(required = false) Integer durationMinutes
     ) {
         return parkingLotService.searchNearby(

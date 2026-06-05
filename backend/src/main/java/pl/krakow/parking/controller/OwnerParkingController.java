@@ -7,16 +7,21 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import pl.krakow.parking.dto.OccupancyUpdateRequest;
+import pl.krakow.parking.dto.OwnerParkingCreateRequest;
 import pl.krakow.parking.dto.ParkingLotResponse;
 import pl.krakow.parking.dto.ParkingLotUpdateRequest;
 import pl.krakow.parking.dto.ParkingSpotRequest;
 import pl.krakow.parking.dto.ParkingSpotResponse;
+import pl.krakow.parking.dto.PriceResponse;
+import pl.krakow.parking.dto.PriceUpsertRequest;
 import pl.krakow.parking.service.ParkingLotService;
+import pl.krakow.parking.service.PriceService;
 
 @Validated
 @RestController
@@ -24,14 +29,24 @@ import pl.krakow.parking.service.ParkingLotService;
 public class OwnerParkingController {
 
     private final ParkingLotService parkingLotService;
+    private final PriceService priceService;
 
-    public OwnerParkingController(ParkingLotService parkingLotService) {
+    public OwnerParkingController(ParkingLotService parkingLotService, PriceService priceService) {
         this.parkingLotService = parkingLotService;
+        this.priceService = priceService;
     }
 
     @GetMapping
     public List<ParkingLotResponse> getMyParkingLots(Principal principal) {
         return parkingLotService.findAllByOwner(principal.getName());
+    }
+
+    @PostMapping
+    public ParkingLotResponse create(
+        @Valid @RequestBody OwnerParkingCreateRequest request,
+        Principal principal
+    ) {
+        return parkingLotService.createForOwner(request, principal.getName());
     }
 
     @GetMapping("/{id}")
@@ -70,5 +85,14 @@ public class OwnerParkingController {
         Principal principal
     ) {
         return parkingLotService.replaceSpotsForOwner(id, requests, principal.getName());
+    }
+
+    @PutMapping("/{id}/price")
+    public PriceResponse updatePrice(
+        @PathVariable Long id,
+        @Valid @RequestBody PriceUpsertRequest request,
+        Principal principal
+    ) {
+        return priceService.upsertParkingPriceForOwner(id, principal.getName(), request);
     }
 }
