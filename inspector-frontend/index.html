@@ -67,6 +67,11 @@
     .pay-card { background: #0f172a; border: 2px solid #0284c7; border-radius: 12px; padding: 20px; margin-top: 16px; }
     .pay-field label { display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; }
     .pay-field input { width: 100%; background: #1e293b; border: 1px solid #334155; color: #f1f5f9; padding: 10px; border-radius: 6px; font-size: 0.9rem; margin-bottom: 10px; }
+    #login-screen { width: 100%; max-width: 480px; }
+    .logout-bar { width: 100%; max-width: 480px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; font-size: 0.8rem; color: #64748b; }
+    .logout-bar button { background: transparent; border: 1px solid #475569; color: #94a3b8; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
+    .logout-bar button:hover { border-color: #ef4444; color: #f87171; }
+    #app-content { width: 100%; display: none; }
   </style>
 </head>
 <body>
@@ -75,10 +80,34 @@
     <p>Panel kontrolny dla inspektorów i bramek wjazdowych/wyjazdowych</p>
   </div>
 
-  <div class="tabs" style="width:100%;max-width:480px">
-    <button class="tab tab--active" id="tab-check" onclick="showTab('check')">Sprawdź tablicę</button>
-    <button class="tab" id="tab-exit" onclick="showTab('exit')">Opłata przy wyjściu</button>
+  <!-- LOGIN SCREEN -->
+  <div id="login-screen">
+    <div class="card">
+      <div class="field">
+        <label for="login-email">E-mail</label>
+        <input type="email" id="login-email" placeholder="inspector@parking.local" autocomplete="username" style="text-transform:none" />
+      </div>
+      <div class="field">
+        <label for="login-password">Haslo</label>
+        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" style="text-transform:none" />
+      </div>
+      <div id="login-error" style="color:#f87171;font-size:.85rem;margin-bottom:12px;display:none"></div>
+      <button class="btn btn--blue" id="btn-login" onclick="doLogin()">Zaloguj sie</button>
+    </div>
+    <p style="color:#475569;font-size:.75rem;text-align:center;margin-top:8px">Dostep tylko dla kont z rola Inspektor lub Administrator.</p>
   </div>
+
+  <!-- MAIN APP (hidden until logged in) -->
+  <div id="app-content">
+    <div class="logout-bar">
+      <span id="logged-as"></span>
+      <button onclick="doLogout()">Wyloguj</button>
+    </div>
+
+    <div class="tabs" style="width:100%;max-width:480px">
+      <button class="tab tab--active" id="tab-check" onclick="showTab('check')">Sprawdz tablice</button>
+      <button class="tab" id="tab-exit" onclick="showTab('exit')">Oplata przy wyjsciu</button>
+    </div>
 
   <!-- CHECK TAB -->
   <div id="panel-check" style="width:100%;max-width:480px">
@@ -99,14 +128,95 @@
         <label for="plate-exit">Numer rejestracyjny</label>
         <input type="text" id="plate-exit" placeholder="np. KR1234AB" maxlength="20" autocomplete="off" />
       </div>
-      <button class="btn btn--blue" id="btn-exit" onclick="initiateExit()">Przygotuj płatność</button>
+      <button class="btn btn--blue" id="btn-exit" onclick="initiateExit()">Przygotuj platnosc</button>
     </div>
     <div id="result-exit"></div>
   </div>
 
+  </div> <!-- end #app-content -->
+
   <script>
     const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
       ? 'http://localhost:8080' : '';
+
+    let jwtToken = sessionStorage.getItem('inspector_token') || null;
+
+    function authHeaders() {
+      return jwtToken ? { 'Authorization': 'Bearer ' + jwtToken, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+    }
+
+    async function authFetch(url, options = {}) {
+      const res = await fetch(url, { ...options, headers: { ...authHeaders(), ...(options.headers || {}) } });
+      if (res.status === 401 || res.status === 403) { doLogout(); throw new Error('Sesja wygasla. Zaloguj sie ponownie.'); }
+      return res;
+    }
+
+    async function doLogin() {
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      const errEl = document.getElementById('login-error');
+      const btn = document.getElementById('btn-login');
+      errEl.style.display = 'none';
+      btn.disabled = true; btn.textContent = 'Logowanie...';
+      try {
+        const res = await fetch(API_BASE + '/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        if (!res.ok) { const t = await res.text(); throw new Error(JSON.parse(t).message || 'Bledne dane logowania.'); }
+        const data = await res.json();
+        const roles = data.roles || [];
+        if (!roles.includes('INSPECTOR') && !roles.includes('ADMIN')) {
+          throw new Error('Konto nie posiada roli Inspektora ani Administratora.');
+        }
+        jwtToken = data.token;
+        sessionStorage.setItem('inspector_token', jwtToken);
+        document.getElementById('logged-as').textContent = 'Zalogowano: ' + data.firstName + ' ' + data.lastName + ' (' + data.email + ')';
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('app-content').style.display = 'flex';
+        document.getElementById('app-content').style.flexDirection = 'column';
+        document.getElementById('app-content').style.alignItems = 'center';
+      } catch(err) {
+        errEl.textContent = err.message || 'Blad logowania.';
+        errEl.style.display = 'block';
+      } finally {
+        btn.disabled = false; btn.textContent = 'Zaloguj sie';
+      }
+    }
+
+    function doLogout() {
+      jwtToken = null;
+      sessionStorage.removeItem('inspector_token');
+      document.getElementById('login-screen').style.display = 'block';
+      document.getElementById('app-content').style.display = 'none';
+      document.getElementById('login-email').value = '';
+      document.getElementById('login-password').value = '';
+      document.getElementById('result-check').innerHTML = '';
+      document.getElementById('result-exit').innerHTML = '';
+    }
+
+    // Auto-restore session on load
+    window.addEventListener('DOMContentLoaded', () => {
+      if (jwtToken) {
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('app-content').style.display = 'flex';
+        document.getElementById('app-content').style.flexDirection = 'column';
+        document.getElementById('app-content').style.alignItems = 'center';
+      }
+      // Uppercase only plate inputs, not login fields
+      ['plate-check', 'plate-exit'].forEach(id => {
+        const inp = document.getElementById(id);
+        if (!inp) return;
+        inp.addEventListener('input', () => { inp.value = inp.value.toUpperCase().replace(/\s+/g, ''); });
+        inp.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { if (id === 'plate-check') checkPlate(); else initiateExit(); }
+        });
+      });
+      document.getElementById('login-password').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') doLogin();
+      });
+    });
 
     function showTab(name) {
       ['check', 'exit'].forEach(t => {
@@ -114,17 +224,6 @@
         document.getElementById('tab-' + t).classList.toggle('tab--active', t === name);
       });
     }
-
-    // Auto-uppercase inputs
-    document.querySelectorAll('input').forEach(inp => {
-      inp.addEventListener('input', () => { inp.value = inp.value.toUpperCase().replace(/\s+/g, ''); });
-      inp.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          if (inp.id === 'plate-check') checkPlate();
-          if (inp.id === 'plate-exit') initiateExit();
-        }
-      });
-    });
 
     function formatDateTime(iso) {
       if (!iso) return '—';
@@ -139,11 +238,11 @@
     // ═══════════════ CHECK TAB ═══════════════
     async function checkPlate() {
       const plate = document.getElementById('plate-check').value.trim();
-      if (!plate || plate.length < 3) { showError('result-check', 'Podaj prawidłowy numer rejestracyjny.'); return; }
+      if (!plate || plate.length < 3) { showError('result-check', 'Podaj prawidlowy numer rejestracyjny.'); return; }
       setLoading('btn-check', true);
       document.getElementById('result-check').innerHTML = '';
       try {
-        const res = await fetch(`${API_BASE}/api/inspect/${encodeURIComponent(plate)}`);
+        const res = await authFetch(`${API_BASE}/api/inspect/${encodeURIComponent(plate)}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         renderCheckResult(await res.json());
       } catch(err) {
@@ -185,7 +284,7 @@
       document.getElementById('result-exit').innerHTML = '';
       currentExitToken = null;
       try {
-        const res = await fetch(`${API_BASE}/api/inspect/exit/${encodeURIComponent(plate)}/initiate`, { method: 'POST' });
+        const res = await authFetch(`${API_BASE}/api/inspect/exit/${encodeURIComponent(plate)}/initiate`, { method: 'POST' });
         const data = await res.json();
         if (!data.success) {
           showError('result-exit', data.message || 'Brak aktywnej sesji dla tego pojazdu.');
@@ -221,7 +320,7 @@
     async function confirmExit() {
       if (!currentExitToken) return;
       try {
-        const res = await fetch(`${API_BASE}/api/inspect/exit/confirm/${currentExitToken}`, { method: 'POST' });
+        const res = await authFetch(`${API_BASE}/api/inspect/exit/confirm/${currentExitToken}`, { method: 'POST' });
         const data = await res.json();
         if (data.success) {
           document.getElementById('result-exit').innerHTML = `

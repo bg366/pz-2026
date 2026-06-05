@@ -91,6 +91,7 @@ public class DataSeeder implements CommandLineRunner {
         ensureUser("Admin", "Krakow", "admin@krakow-parking.local", "Admin123!", Set.of(UserRole.ADMIN));
         ensureUser("Jan", "Kierowca", "user@krakow-parking.local", "User12345!", Set.of(UserRole.USER));
         ensureUser("Anna", "Właściciel", "owner@krakow-parking.local", "Owner123!", Set.of(UserRole.PARKING_OWNER));
+        ensureUser("Inspektor", "Parkingowy", "inspector@parking.local", "Inspector123!", Set.of(UserRole.INSPECTOR));
     }
 
     private void ensureUser(String firstName, String lastName, String email, String password, Set<UserRole> roles) {

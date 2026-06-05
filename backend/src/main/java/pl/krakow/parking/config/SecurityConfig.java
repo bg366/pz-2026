@@ -41,7 +41,6 @@ public class SecurityConfig {
                     "/api/parking-lots/search",
                     "/api/parking-fee/**",
                     "/api/vehicles/check",
-                    "/api/inspect/**",
                     "/v3/api-docs/**",
                     "/swagger-ui/**",
                     "/swagger-ui.html",
@@ -49,6 +48,7 @@ public class SecurityConfig {
                 ).permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/integrations/**").hasRole("ADMIN")
+                .requestMatchers("/api/inspect/**").hasAnyRole("INSPECTOR", "ADMIN")
                 .requestMatchers("/api/owner/**").hasAnyRole("PARKING_OWNER", "ADMIN")
                 .requestMatchers("/api/me/**", "/api/auth/me").authenticated()
                 .anyRequest().permitAll()

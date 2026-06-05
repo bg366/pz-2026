@@ -3,7 +3,7 @@ export type ParkingStatus = "ACTIVE" | "INACTIVE" | "TEMPORARILY_CLOSED" | "PEND
 export type ParkingAccessType = "BARRIER" | "OPEN";
 export type SpotCategory = "REGULAR" | "EV" | "DISABLED" | "SCT_READY";
 export type FuelType = "PETROL" | "DIESEL" | "LPG" | "HYBRID" | "ELECTRIC";
-export type UserRole = "ADMIN" | "PARKING_OWNER" | "USER";
+export type UserRole = "ADMIN" | "PARKING_OWNER" | "USER" | "INSPECTOR";
 export type UserStatus = "ACTIVE" | "BLOCKED" | "DELETED";
 
 export type AuthState = {

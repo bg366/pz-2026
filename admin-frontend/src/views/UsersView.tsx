@@ -103,7 +103,7 @@ export default function UsersView({ token }: Props) {
                   <div style={styles.helper}>{user.email}</div>
                 </td>
                 <td style={styles.td}>
-                  {(["ADMIN", "PARKING_OWNER", "USER"] as UserRole[]).map((role) => (
+                  {(["ADMIN", "PARKING_OWNER", "USER", "INSPECTOR"] as UserRole[]).map((role) => (
                     <label key={role} style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px", fontSize: "13px", cursor: "pointer" }}>
                       <input
                         type="checkbox"
