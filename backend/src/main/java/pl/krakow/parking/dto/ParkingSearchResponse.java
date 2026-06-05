@@ -1,6 +1,7 @@
 package pl.krakow.parking.dto;
 
 import java.math.BigDecimal;
+import pl.krakow.parking.model.ParkingAccessType;
 import pl.krakow.parking.model.ParkingLotStatus;
 import pl.krakow.parking.model.ParkingPermission;
 import pl.krakow.parking.model.ParkingZone;
@@ -26,6 +27,7 @@ public record ParkingSearchResponse(
     String predictedPricingMode,
     BigDecimal pricePerHour,
     String currency,
-    String parkingType
+    String parkingType,
+    ParkingAccessType accessType
 ) {
 }

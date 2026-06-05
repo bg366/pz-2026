@@ -26,6 +26,7 @@ import org.springframework.security.access.AccessDeniedException;
 import pl.krakow.parking.exception.ResourceNotFoundException;
 import pl.krakow.parking.mapper.ParkingLotMapper;
 import pl.krakow.parking.mapper.ParkingSpotMapper;
+import pl.krakow.parking.model.ParkingAccessType;
 import pl.krakow.parking.model.ParkingLot;
 import pl.krakow.parking.model.ParkingLotStatus;
 import pl.krakow.parking.model.ParkingPermission;
@@ -87,6 +88,9 @@ public class ParkingLotService {
         ParkingLot parkingLot = parkingLotMapper.toEntity(request);
         parkingLot.setLocation(createPoint(request.longitude(), request.latitude()));
         parkingLot.setOccupiedSpots(0);
+        if (request.accessType() != null) {
+            parkingLot.setAccessType(request.accessType());
+        }
         return toParkingLotResponse(parkingLotRepository.save(parkingLot));
     }
 
@@ -96,6 +100,9 @@ public class ParkingLotService {
         ParkingLot parkingLot = getParkingLotEntity(id);
         parkingLotMapper.updateParkingLot(request, parkingLot);
         parkingLot.setLocation(createPoint(request.longitude(), request.latitude()));
+        if (request.accessType() != null) {
+            parkingLot.setAccessType(request.accessType());
+        }
         if (parkingLot.getOccupiedSpots() > parkingLot.getTotalSpots()) {
             parkingLot.setOccupiedSpots(parkingLot.getTotalSpots());
         }
@@ -161,6 +168,9 @@ public class ParkingLotService {
         checkOwnership(parkingLot, ownerEmail);
         parkingLotMapper.updateParkingLot(request, parkingLot);
         parkingLot.setLocation(createPoint(request.longitude(), request.latitude()));
+        if (request.accessType() != null) {
+            parkingLot.setAccessType(request.accessType());
+        }
         if (parkingLot.getOccupiedSpots() > parkingLot.getTotalSpots()) {
             parkingLot.setOccupiedSpots(parkingLot.getTotalSpots());
         }
@@ -300,7 +310,8 @@ public class ParkingLotService {
             predictedCost.pricingMode(),
             pricePerHour,
             currency,
-            parkingLot.getParkingType()
+            parkingLot.getParkingType(),
+            parkingLot.getAccessType() != null ? parkingLot.getAccessType() : ParkingAccessType.BARRIER
         );
     }
 
@@ -321,6 +332,7 @@ public class ParkingLotService {
             parkingLot.getOccupiedSctSpots(),
             parkingLot.getOpeningHours(),
             parkingLot.getParkingType(),
+            parkingLot.getAccessType() != null ? parkingLot.getAccessType() : ParkingAccessType.BARRIER,
             parkingSpotMapper.toResponses(parkingLot.getSpots().stream()
                 .sorted(Comparator.comparing(ParkingSpot::getCategory))
                 .toList()),

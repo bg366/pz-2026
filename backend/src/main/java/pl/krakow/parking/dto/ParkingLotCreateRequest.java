@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import pl.krakow.parking.model.ParkingAccessType;
 import pl.krakow.parking.model.ParkingLotStatus;
 import pl.krakow.parking.model.ParkingZone;
 
@@ -20,6 +21,7 @@ public record ParkingLotCreateRequest(
     @NotNull @Min(0) Integer totalSpots,
     @NotNull @Min(0) Integer totalSctSpots,
     @NotBlank @Size(max = 255) String openingHours,
-    @NotBlank String parkingType
+    @NotBlank String parkingType,
+    ParkingAccessType accessType
 ) {
 }

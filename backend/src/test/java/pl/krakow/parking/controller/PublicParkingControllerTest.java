@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import pl.krakow.parking.config.SecurityConfig;
 import pl.krakow.parking.dto.ParkingSearchResponse;
 import pl.krakow.parking.exception.GlobalExceptionHandler;
+import pl.krakow.parking.model.ParkingAccessType;
 import pl.krakow.parking.model.ParkingLotStatus;
 import pl.krakow.parking.model.ParkingPermission;
 import pl.krakow.parking.model.ParkingZone;
@@ -60,7 +61,8 @@ class PublicParkingControllerTest {
                     null,
                     BigDecimal.valueOf(6),
                     "PLN",
-                    "UNDERGROUND"
+                    "UNDERGROUND",
+                    ParkingAccessType.BARRIER
                 )
             ));
 

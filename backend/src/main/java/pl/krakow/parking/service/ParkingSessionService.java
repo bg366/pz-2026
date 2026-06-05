@@ -1,0 +1,175 @@
+package pl.krakow.parking.service;
+
+import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import pl.krakow.parking.dto.ParkingSessionResponse;
+import pl.krakow.parking.dto.StartSessionRequest;
+import pl.krakow.parking.exception.ResourceNotFoundException;
+import pl.krakow.parking.model.ParkingAccessType;
+import pl.krakow.parking.model.ParkingLot;
+import pl.krakow.parking.model.ParkingLotStatus;
+import pl.krakow.parking.model.ParkingSession;
+import pl.krakow.parking.model.ParkingSessionStatus;
+import pl.krakow.parking.model.User;
+import pl.krakow.parking.repository.ParkingLotRepository;
+import pl.krakow.parking.repository.ParkingSessionRepository;
+import pl.krakow.parking.repository.UserRepository;
+
+@Service
+public class ParkingSessionService {
+
+    private final ParkingSessionRepository sessionRepository;
+    private final ParkingLotRepository parkingLotRepository;
+    private final UserRepository userRepository;
+    private final ParkingFeeService parkingFeeService;
+
+    public ParkingSessionService(
+        ParkingSessionRepository sessionRepository,
+        ParkingLotRepository parkingLotRepository,
+        UserRepository userRepository,
+        ParkingFeeService parkingFeeService
+    ) {
+        this.sessionRepository = sessionRepository;
+        this.parkingLotRepository = parkingLotRepository;
+        this.userRepository = userRepository;
+        this.parkingFeeService = parkingFeeService;
+    }
+
+    @Transactional(readOnly = true)
+    public List<ParkingSessionResponse> listForUser(String email) {
+        return sessionRepository.findByUserEmailIgnoreCaseOrderByStartedAtDesc(email)
+            .stream()
+            .map(this::toResponse)
+            .toList();
+    }
+
+    @Transactional
+    public ParkingSessionResponse startSession(String email, StartSessionRequest request) {
+        ParkingLot lot = parkingLotRepository.findById(request.parkingLotId())
+            .orElseThrow(() -> new ResourceNotFoundException("Parking not found: " + request.parkingLotId()));
+
+        if (lot.getStatus() != ParkingLotStatus.ACTIVE) {
+            throw new IllegalArgumentException("Parking jest niedostępny.");
+        }
+
+        User user = userRepository.findByEmailIgnoreCase(email)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found: " + email));
+
+        String plate = request.registrationNumber().toUpperCase().replaceAll("\\s+", "");
+
+        boolean hasActive = sessionRepository.findFirstByRegistrationNumberIgnoreCaseAndStatusIn(
+            plate, List.of(ParkingSessionStatus.ACTIVE)
+        ).isPresent();
+        if (hasActive) {
+            throw new IllegalArgumentException("Istnieje już aktywna sesja parkingowa dla rejestracji " + plate + ".");
+        }
+
+        if (lot.getAccessType() == ParkingAccessType.BARRIER) {
+            int freeSpots = lot.getTotalSpots() - lot.getOccupiedSpots();
+            if (freeSpots <= 0) {
+                throw new IllegalArgumentException("Parking jest pełny. Szlaban pozostaje zamknięty.");
+            }
+        }
+
+        ParkingSession session = ParkingSession.builder()
+            .parkingLot(lot)
+            .user(user)
+            .registrationNumber(plate)
+            .startedAt(LocalDateTime.now())
+            .status(ParkingSessionStatus.ACTIVE)
+            .currency("PLN")
+            .build();
+
+        return toResponse(sessionRepository.save(session));
+    }
+
+    @Transactional
+    public ParkingSessionResponse requestPayment(Long sessionId, String email) {
+        ParkingSession session = sessionRepository.findById(sessionId)
+            .orElseThrow(() -> new ResourceNotFoundException("Session not found: " + sessionId));
+
+        if (!session.getUser().getEmail().equalsIgnoreCase(email)) {
+            throw new AccessDeniedException("This session does not belong to you.");
+        }
+
+        if (session.getStatus() != ParkingSessionStatus.ACTIVE) {
+            throw new IllegalArgumentException("Sesja nie jest aktywna.");
+        }
+
+        LocalDateTime endedAt = LocalDateTime.now();
+        long minutes = Duration.between(session.getStartedAt(), endedAt).toMinutes();
+        BigDecimal amount = calculateFeeSafely(session.getParkingLot().getId(), (int) Math.max(minutes, 1));
+
+        session.setEndedAt(endedAt);
+        session.setAmount(amount);
+        session.setStatus(ParkingSessionStatus.PAYMENT_PENDING);
+        session.setPaymentToken(UUID.randomUUID().toString().replace("-", ""));
+
+        return toResponse(sessionRepository.save(session));
+    }
+
+    @Transactional
+    public ParkingSessionResponse confirmPayment(String token, String email) {
+        ParkingSession session = sessionRepository.findByPaymentToken(token)
+            .orElseThrow(() -> new ResourceNotFoundException("Payment token not found."));
+
+        if (!session.getUser().getEmail().equalsIgnoreCase(email)) {
+            throw new AccessDeniedException("This session does not belong to you.");
+        }
+
+        if (session.getStatus() != ParkingSessionStatus.PAYMENT_PENDING) {
+            throw new IllegalArgumentException("Sesja nie oczekuje na płatność.");
+        }
+
+        session.setStatus(ParkingSessionStatus.PAID);
+        return toResponse(sessionRepository.save(session));
+    }
+
+    @Transactional
+    public ParkingSessionResponse cancelSession(Long sessionId, String email) {
+        ParkingSession session = sessionRepository.findById(sessionId)
+            .orElseThrow(() -> new ResourceNotFoundException("Session not found: " + sessionId));
+
+        if (!session.getUser().getEmail().equalsIgnoreCase(email)) {
+            throw new AccessDeniedException("This session does not belong to you.");
+        }
+
+        if (session.getStatus() != ParkingSessionStatus.ACTIVE) {
+            throw new IllegalArgumentException("Można anulować tylko aktywną sesję.");
+        }
+
+        session.setStatus(ParkingSessionStatus.CANCELLED);
+        return toResponse(sessionRepository.save(session));
+    }
+
+    private BigDecimal calculateFeeSafely(Long parkingLotId, int minutes) {
+        try {
+            var fee = parkingFeeService.calculateFee(parkingLotId, minutes);
+            return fee != null ? fee.amount() : BigDecimal.ZERO;
+        } catch (RuntimeException ignored) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private ParkingSessionResponse toResponse(ParkingSession s) {
+        return new ParkingSessionResponse(
+            s.getId(),
+            s.getParkingLot().getId(),
+            s.getParkingLot().getName(),
+            s.getParkingLot().getAddress(),
+            s.getRegistrationNumber(),
+            s.getStartedAt(),
+            s.getEndedAt(),
+            s.getStatus(),
+            s.getAmount(),
+            s.getCurrency(),
+            s.getPaymentToken()
+        );
+    }
+}

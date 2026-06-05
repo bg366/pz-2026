@@ -16,6 +16,7 @@ public interface ParkingLotMapper {
     @Mapping(target = "location", ignore = true)
     @Mapping(target = "occupiedSpots", constant = "0")
     @Mapping(target = "occupiedSctSpots", constant = "0")
+    @Mapping(target = "accessType", ignore = true)
     @Mapping(target = "spots", ignore = true)
     @Mapping(target = "owner", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
@@ -24,6 +25,7 @@ public interface ParkingLotMapper {
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "location", ignore = true)
+    @Mapping(target = "accessType", ignore = true)
     @Mapping(target = "spots", ignore = true)
     @Mapping(target = "owner", ignore = true)
     @Mapping(target = "createdAt", ignore = true)

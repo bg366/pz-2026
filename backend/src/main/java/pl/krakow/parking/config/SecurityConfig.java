@@ -41,6 +41,7 @@ public class SecurityConfig {
                     "/api/parking-lots/search",
                     "/api/parking-fee/**",
                     "/api/vehicles/check",
+                    "/api/inspect/**",
                     "/v3/api-docs/**",
                     "/swagger-ui/**",
                     "/swagger-ui.html",

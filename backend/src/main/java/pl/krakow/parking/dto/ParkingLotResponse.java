@@ -1,6 +1,7 @@
 package pl.krakow.parking.dto;
 
 import java.util.List;
+import pl.krakow.parking.model.ParkingAccessType;
 import pl.krakow.parking.model.ParkingLotStatus;
 import pl.krakow.parking.model.ParkingZone;
 
@@ -19,6 +20,7 @@ public record ParkingLotResponse(
     Integer occupiedSctSpots,
     String openingHours,
     String parkingType,
+    ParkingAccessType accessType,
     List<ParkingSpotResponse> spots,
     PriceResponse price,
     Long ownerId,

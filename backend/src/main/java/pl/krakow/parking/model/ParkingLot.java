@@ -76,6 +76,11 @@ public class ParkingLot {
     @Column(nullable = false)
     private String parkingType;
 
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private ParkingAccessType accessType = ParkingAccessType.BARRIER;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id")
     private User owner;

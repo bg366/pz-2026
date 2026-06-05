@@ -12,6 +12,7 @@ import pl.krakow.parking.dto.ReservationResponse;
 import pl.krakow.parking.exception.ResourceNotFoundException;
 import pl.krakow.parking.model.Payment;
 import pl.krakow.parking.model.PaymentStatus;
+import pl.krakow.parking.model.ParkingAccessType;
 import pl.krakow.parking.model.ParkingLot;
 import pl.krakow.parking.model.ParkingLotStatus;
 import pl.krakow.parking.model.Reservation;
@@ -66,6 +67,15 @@ public class ReservationService {
 
         if (parkingLot.getStatus() != ParkingLotStatus.ACTIVE) {
             throw new IllegalArgumentException("Parking jest niedostępny (status: " + parkingLot.getStatus() + ").");
+        }
+
+        if (parkingLot.getAccessType() == ParkingAccessType.OPEN) {
+            throw new IllegalArgumentException("Ten parking jest otwarty bez szlabanu. Nie wymaga rezerwacji — opłacisz pobyt po przyjeździe.");
+        }
+
+        int freeSpots = parkingLot.getTotalSpots() - parkingLot.getOccupiedSpots();
+        if (freeSpots <= 0) {
+            throw new IllegalArgumentException("Parking jest pełny. Brak wolnych miejsc.");
         }
 
         Reservation reservation = Reservation.builder()

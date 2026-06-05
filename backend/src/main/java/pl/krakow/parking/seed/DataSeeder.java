@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import pl.krakow.parking.model.EmissionStandard;
 import pl.krakow.parking.model.FuelType;
+import pl.krakow.parking.model.ParkingAccessType;
 import pl.krakow.parking.model.ParkingLot;
 import pl.krakow.parking.model.ParkingLotStatus;
 import pl.krakow.parking.model.ParkingSpot;
@@ -230,14 +231,14 @@ public class DataSeeder implements CommandLineRunner {
         User ownerUser = userRepository.findByEmailIgnoreCase("owner@krakow-parking.local").orElse(null);
         User adminUser = userRepository.findByEmailIgnoreCase("admin@krakow-parking.local").orElse(null);
 
-        createParking("Parking Galeria Krakowska", "ul. Pawia 5, Kraków", ParkingZone.ZONE_A, 50.0670, 19.9450, 500, "PUBLIC", adminUser);
-        createParking("Parking Bonarka City Center", "ul. Kamieńskiego 11, Kraków", ParkingZone.ZONE_B, 50.0305, 19.9570, 1100, "PRIVATE", ownerUser);
-        createParking("Parking Galeria Kazimierz", "ul. Podgórska 34, Kraków", ParkingZone.ZONE_A, 50.0475, 19.9560, 650, "PRIVATE", ownerUser);
-        createParking("Parking P+R Czerwone Maki", "ul. Czerwone Maki, Kraków", ParkingZone.ZONE_C, 50.0260, 19.8890, 250, "PARK_AND_RIDE", adminUser);
-        createParking("Parking P+R Bieżanów", "ul. Bieżanowska, Kraków", ParkingZone.ZONE_C, 50.0140, 20.0230, 200, "PARK_AND_RIDE", adminUser);
-        createParking("Parking Rynek Główny", "Rynek Główny, Kraków", ParkingZone.ZONE_A, 50.0615, 19.9370, 120, "UNDERGROUND", adminUser);
-        createParking("Parking Wawel", "ul. Powiśle, Kraków", ParkingZone.ZONE_A, 50.0540, 19.9355, 80, "PUBLIC", adminUser);
-        createParking("Parking ICE Kraków", "ul. Marii Konopnickiej 17, Kraków", ParkingZone.ZONE_B, 50.0500, 19.9250, 300, "PUBLIC", adminUser);
+        createParking("Parking Galeria Krakowska", "ul. Pawia 5, Kraków", ParkingZone.ZONE_A, 50.0670, 19.9450, 500, "PUBLIC", adminUser, ParkingAccessType.OPEN);
+        createParking("Parking Bonarka City Center", "ul. Kamieńskiego 11, Kraków", ParkingZone.ZONE_B, 50.0305, 19.9570, 1100, "PRIVATE", ownerUser, ParkingAccessType.BARRIER);
+        createParking("Parking Galeria Kazimierz", "ul. Podgórska 34, Kraków", ParkingZone.ZONE_A, 50.0475, 19.9560, 650, "PRIVATE", ownerUser, ParkingAccessType.BARRIER);
+        createParking("Parking P+R Czerwone Maki", "ul. Czerwone Maki, Kraków", ParkingZone.ZONE_C, 50.0260, 19.8890, 250, "PARK_AND_RIDE", adminUser, ParkingAccessType.OPEN);
+        createParking("Parking P+R Bieżanów", "ul. Bieżanowska, Kraków", ParkingZone.ZONE_C, 50.0140, 20.0230, 200, "PARK_AND_RIDE", adminUser, ParkingAccessType.OPEN);
+        createParking("Parking Rynek Główny", "Rynek Główny, Kraków", ParkingZone.ZONE_A, 50.0615, 19.9370, 120, "UNDERGROUND", adminUser, ParkingAccessType.BARRIER);
+        createParking("Parking Wawel", "ul. Powiśle, Kraków", ParkingZone.ZONE_A, 50.0540, 19.9355, 80, "PUBLIC", adminUser, ParkingAccessType.OPEN);
+        createParking("Parking ICE Kraków", "ul. Marii Konopnickiej 17, Kraków", ParkingZone.ZONE_B, 50.0500, 19.9250, 300, "PUBLIC", adminUser, ParkingAccessType.OPEN);
     }
 
     private void createParking(
@@ -248,7 +249,8 @@ public class DataSeeder implements CommandLineRunner {
         double longitude,
         int totalSpots,
         String parkingType,
-        User owner
+        User owner,
+        ParkingAccessType accessType
     ) {
         int occupiedSpots = calculateOccupied(totalSpots);
         int regular = (int) Math.round(totalSpots * 0.7);
@@ -269,6 +271,7 @@ public class DataSeeder implements CommandLineRunner {
             .occupiedSctSpots(occupiedSct)
             .openingHours("24/7")
             .parkingType(parkingType)
+            .accessType(accessType)
             .owner(owner)
             .build();
 
