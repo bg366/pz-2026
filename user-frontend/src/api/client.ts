@@ -1,11 +1,16 @@
-import type { AuthState, UserVehicle, UserVehicleRequest, ParkingSearchResult, VehicleCheckResponse, Reservation, ReservationRequest, AppNotification, OwnerParkingLot } from "./types";
+import type { AuthState, UserVehicle, UserVehicleRequest, ParkingSearchResult, VehicleCheckResponse, Reservation, ReservationRequest, AppNotification, OwnerParkingCreateRequest, OwnerParkingLot, PriceForm } from "./types";
 
 export const AUTH_STORAGE_KEY = "krakow-parking-user-auth";
 
 export function readStoredAuth(): AuthState | null {
   try {
     const stored = window.localStorage.getItem(AUTH_STORAGE_KEY);
-    return stored ? (JSON.parse(stored) as AuthState) : null;
+    const auth = stored ? (JSON.parse(stored) as AuthState) : null;
+    if (auth && auth.token.split(".").length !== 3) {
+      window.localStorage.removeItem(AUTH_STORAGE_KEY);
+      return null;
+    }
+    return auth;
   } catch {
     window.localStorage.removeItem(AUTH_STORAGE_KEY);
     return null;
@@ -26,13 +31,26 @@ function getToken(): string {
 }
 
 function authHeaders(): HeadersInit {
-  return { Authorization: `Basic ${getToken()}` };
+  return { Authorization: `Bearer ${getToken()}` };
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const text = await response.text().catch(() => `HTTP ${response.status}`);
-    throw new Error(text || `HTTP ${response.status}`);
+    let parsed: { message?: string; errors?: string[] } | null = null;
+    try {
+      parsed = JSON.parse(text) as { message?: string; errors?: string[] };
+    } catch {
+      parsed = null;
+    }
+    if (parsed) {
+      const details = Array.isArray(parsed.errors) && parsed.errors.length > 0 ? ` ${parsed.errors.join(", ")}` : "";
+      throw new Error(`${parsed.message ?? `Błąd HTTP ${response.status}`}${details}`);
+    }
+    if (text.includes("Data integrity violation")) {
+      throw new Error("Nie udało się zapisać danych. Sprawdź formularz i spróbuj ponownie.");
+    }
+    throw new Error(text || `Błąd HTTP ${response.status}`);
   }
   return response.json() as Promise<T>;
 }
@@ -73,6 +91,19 @@ export async function updateProfile(firstName: string, lastName: string): Promis
     body: JSON.stringify({ firstName, lastName })
   });
   return handleResponse<ProfilePayload>(response);
+}
+
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+  confirmPassword: string
+): Promise<AuthState> {
+  const response = await fetch("/api/me/password", {
+    method: "PUT",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ currentPassword, newPassword, confirmPassword })
+  });
+  return handleResponse<AuthState>(response);
 }
 
 // --- Vehicles ---
@@ -173,11 +204,40 @@ export async function cancelReservation(id: number): Promise<Reservation> {
   return handleResponse<Reservation>(response);
 }
 
+export async function confirmPayment(token: string): Promise<{ status: string }> {
+  const response = await fetch(`/api/me/payments/${token}/confirm`, {
+    method: "POST",
+    headers: authHeaders()
+  });
+  return handleResponse<{ status: string }>(response);
+}
+
+export async function cancelPayment(token: string): Promise<{ status: string }> {
+  const response = await fetch(`/api/me/payments/${token}/cancel`, {
+    method: "POST",
+    headers: authHeaders()
+  });
+  return handleResponse<{ status: string }>(response);
+}
+
+export async function getAllActiveParkings(): Promise<ParkingSearchResult[]> {
+  return searchParkings({ lat: "50.0615", lng: "19.9370", radiusKm: "50" });
+}
+
 // --- Owner ---
 
 export async function getOwnerParkingLots(): Promise<OwnerParkingLot[]> {
   const response = await fetch("/api/owner/parking-lots", { headers: authHeaders() });
   return handleResponse<OwnerParkingLot[]>(response);
+}
+
+export async function createOwnerParkingLot(data: OwnerParkingCreateRequest): Promise<OwnerParkingLot> {
+  const response = await fetch("/api/owner/parking-lots", {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(data)
+  });
+  return handleResponse<OwnerParkingLot>(response);
 }
 
 export async function updateOwnerOccupancy(id: number, occupiedSpots: number): Promise<OwnerParkingLot> {
@@ -199,6 +259,21 @@ export async function updateOwnerSpots(
     body: JSON.stringify(spots)
   });
   return handleResponse<OwnerParkingLot>(response);
+}
+
+export async function updateOwnerParkingPrice(id: number, form: PriceForm): Promise<OwnerParkingLot["price"]> {
+  const response = await fetch(`/api/owner/parking-lots/${id}/price`, {
+    method: "PUT",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      firstHourPrice: Number(form.firstHourPrice),
+      secondHourPrice: Number(form.secondHourPrice),
+      thirdHourPrice: Number(form.thirdHourPrice),
+      nextHourPrice: Number(form.nextHourPrice),
+      dailyPrice: Number(form.dailyPrice)
+    })
+  });
+  return handleResponse<OwnerParkingLot["price"]>(response);
 }
 
 // --- Notifications ---

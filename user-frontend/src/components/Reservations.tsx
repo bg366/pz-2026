@@ -1,10 +1,19 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { getReservations, createReservation, cancelReservation } from "../api/client";
-import type { Reservation, AuthState } from "../api/types";
+import { getReservations, createReservation, cancelReservation, confirmPayment, cancelPayment, getAllActiveParkings } from "../api/client";
+import type { Reservation, AuthState, ParkingSearchResult } from "../api/types";
 
 type Props = {
   auth: AuthState | null;
+  initialParkingId?: number | null;
+};
+
+type PaymentStep = {
+  reservationId: number;
+  parkingName: string;
+  amount: number | null;
+  currency: string | null;
+  token: string;
 };
 
 function formatDateTime(iso: string): string {
@@ -16,10 +25,20 @@ function formatDateTime(iso: string): string {
 
 function statusLabel(status: Reservation["status"]): string {
   switch (status) {
+    case "PENDING_PAYMENT": return "Oczekuje na płatność";
     case "CONFIRMED": return "Aktywna";
     case "CANCELLED": return "Anulowana";
     case "COMPLETED": return "Zakończona";
     case "EXPIRED": return "Wygasła";
+  }
+}
+
+function statusClass(status: Reservation["status"]): string {
+  switch (status) {
+    case "PENDING_PAYMENT": return "badge";
+    case "CONFIRMED": return "badge badge--success";
+    case "CANCELLED": return "badge badge--danger";
+    default: return "badge";
   }
 }
 
@@ -42,19 +61,48 @@ function defaultEndsAt(): string {
   return toLocalDateTimeInput(d);
 }
 
-export default function Reservations({ auth }: Props) {
+export default function Reservations({ auth, initialParkingId }: Props) {
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [parkingOptions, setParkingOptions] = useState<ParkingSearchResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [parkingLotId, setParkingLotId] = useState("");
   const [startsAt, setStartsAt] = useState(defaultStartsAt);
   const [endsAt, setEndsAt] = useState(defaultEndsAt);
   const [submitting, setSubmitting] = useState(false);
+  const [paymentStep, setPaymentStep] = useState<PaymentStep | null>(null);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [cardNumber, setCardNumber] = useState("4242 4242 4242 4242");
+  const [cardExpiry, setCardExpiry] = useState("12/26");
+  const [cardCvc, setCardCvc] = useState("123");
+
+  useEffect(() => {
+    getAllActiveParkings()
+      .then((list) => setParkingOptions(list))
+      .catch(() => { /* non-critical */ });
+  }, []);
+
+  useEffect(() => {
+    if (initialParkingId != null) {
+      setParkingLotId(String(initialParkingId));
+    }
+  }, [initialParkingId]);
 
   async function load() {
     if (!auth) return;
     try {
-      setReservations(await getReservations());
+      const list = await getReservations();
+      setReservations(list);
+      const pending = list.find((r) => r.status === "PENDING_PAYMENT" && r.paymentToken);
+      if (pending?.paymentToken && !paymentStep) {
+        setPaymentStep({
+          reservationId: pending.id,
+          parkingName: pending.parkingLotName,
+          amount: pending.estimatedAmount,
+          currency: pending.currency,
+          token: pending.paymentToken
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Błąd ładowania rezerwacji.");
     }
@@ -73,13 +121,55 @@ export default function Reservations({ auth }: Props) {
         startsAt: new Date(startsAt).toISOString().replace("Z", ""),
         endsAt: new Date(endsAt).toISOString().replace("Z", "")
       });
-      setStatus(`Rezerwacja #${created.id} potwierdzona: ${created.parkingLotName}.`);
       setParkingLotId("");
-      await load();
+      if (created.paymentToken) {
+        setPaymentStep({
+          reservationId: created.id,
+          parkingName: created.parkingLotName,
+          amount: created.estimatedAmount,
+          currency: created.currency,
+          token: created.paymentToken
+        });
+      } else {
+        setStatus(`Rezerwacja #${created.id} potwierdzona: ${created.parkingLotName}.`);
+        await load();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nie udało się utworzyć rezerwacji.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleConfirmPayment() {
+    if (!paymentStep) return;
+    setPaymentProcessing(true);
+    setError(null);
+    try {
+      await confirmPayment(paymentStep.token);
+      setPaymentStep(null);
+      setStatus(`Płatność potwierdzona! Rezerwacja #${paymentStep.reservationId} aktywna.`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Błąd potwierdzania płatności.");
+    } finally {
+      setPaymentProcessing(false);
+    }
+  }
+
+  async function handleCancelPayment() {
+    if (!paymentStep) return;
+    setPaymentProcessing(true);
+    setError(null);
+    try {
+      await cancelPayment(paymentStep.token);
+      setPaymentStep(null);
+      setStatus("Płatność anulowana. Rezerwacja nie została potwierdzona.");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Błąd anulowania płatności.");
+    } finally {
+      setPaymentProcessing(false);
     }
   }
 
@@ -110,51 +200,132 @@ export default function Reservations({ auth }: Props) {
         <p>Zarezerwuj miejsce parkingowe na wybrany termin.</p>
       </div>
 
-      <form className="card form-grid" onSubmit={(e) => void handleCreate(e)}>
-        <h3 style={{ margin: 0 }}>Nowa rezerwacja</h3>
+      {/* ── Krok płatności ── */}
+      {paymentStep ? (
+        <div className="card stack" style={{ border: "2px solid #2563eb" }}>
+          <h3 style={{ margin: 0, color: "#1d4ed8" }}>Symulacja płatności</h3>
+          <p style={{ margin: 0, color: "#4b5563", fontSize: "14px" }}>
+            Parking: <strong>{paymentStep.parkingName}</strong>
+          </p>
+          <p style={{ margin: 0, fontSize: "22px", fontWeight: 700, color: "#111827" }}>
+            {paymentStep.amount != null
+              ? `${paymentStep.amount.toFixed(2)} ${paymentStep.currency ?? "PLN"}`
+              : "0,00 PLN (brak taryfy)"}
+          </p>
 
-        {status ? <div className="feedback feedback--empty">{status}</div> : null}
-        {error ? <div className="feedback feedback--error">{error}</div> : null}
+          {error ? <div className="feedback feedback--error">{error}</div> : null}
 
-        <label className="field">
-          <span>ID parkingu</span>
-          <input
-            type="number"
-            min="1"
-            value={parkingLotId}
-            onChange={(e) => setParkingLotId(e.target.value)}
-            placeholder="np. 1"
-            required
-          />
-        </label>
+          <div className="form-grid form-grid--three" style={{ gap: "12px" }}>
+            <label className="field" style={{ gridColumn: "1 / -1" }}>
+              <span>Numer karty</span>
+              <input
+                value={cardNumber}
+                onChange={(e) => setCardNumber(e.target.value)}
+                placeholder="0000 0000 0000 0000"
+                maxLength={19}
+              />
+            </label>
+            <label className="field">
+              <span>Data ważności</span>
+              <input
+                value={cardExpiry}
+                onChange={(e) => setCardExpiry(e.target.value)}
+                placeholder="MM/RR"
+                maxLength={5}
+              />
+            </label>
+            <label className="field">
+              <span>CVV</span>
+              <input
+                value={cardCvc}
+                onChange={(e) => setCardCvc(e.target.value)}
+                placeholder="123"
+                maxLength={3}
+                type="password"
+              />
+            </label>
+          </div>
 
-        <label className="field">
-          <span>Początek</span>
-          <input
-            type="datetime-local"
-            value={startsAt}
-            onChange={(e) => setStartsAt(e.target.value)}
-            required
-          />
-        </label>
+          <div style={{ fontSize: "12px", color: "#6b7280", background: "#f9fafb", padding: "8px 12px", borderRadius: "6px" }}>
+            Środowisko testowe — żadne pieniądze nie są pobierane.
+            Karta testowa: <strong>4242 4242 4242 4242</strong>, dowolna data przyszła, dowolny CVV.
+          </div>
 
-        <label className="field">
-          <span>Koniec</span>
-          <input
-            type="datetime-local"
-            value={endsAt}
-            onChange={(e) => setEndsAt(e.target.value)}
-            required
-          />
-        </label>
-
-        <div className="form-actions">
-          <button type="submit" className="button" disabled={submitting}>
-            {submitting ? "Rezerwowanie..." : "Zarezerwuj"}
-          </button>
+          <div className="form-actions">
+            <button
+              type="button"
+              className="button"
+              onClick={() => void handleConfirmPayment()}
+              disabled={paymentProcessing}
+              style={{ background: "#16a34a", borderColor: "#16a34a" }}
+            >
+              {paymentProcessing ? "Przetwarzanie..." : "Zapłać teraz"}
+            </button>
+            <button
+              type="button"
+              className="button button--ghost"
+              onClick={() => void handleCancelPayment()}
+              disabled={paymentProcessing}
+            >
+              Anuluj rezerwację
+            </button>
+          </div>
         </div>
-      </form>
+      ) : null}
 
+      {/* ── Formularz nowej rezerwacji ── */}
+      {!paymentStep ? (
+        <form className="card form-grid" onSubmit={(e) => void handleCreate(e)}>
+          <h3 style={{ margin: 0 }}>Nowa rezerwacja</h3>
+
+          {status ? <div className="feedback feedback--empty">{status}</div> : null}
+          {error ? <div className="feedback feedback--error">{error}</div> : null}
+
+          <label className="field">
+            <span>Parking</span>
+            <select
+              value={parkingLotId}
+              onChange={(e) => setParkingLotId(e.target.value)}
+              required
+            >
+              <option value="">— wybierz parking —</option>
+              {parkingOptions.map((p) => (
+                <option key={p.id} value={String(p.id)}>
+                  {p.name} ({p.address})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Początek</span>
+            <input
+              type="datetime-local"
+              value={startsAt}
+              onChange={(e) => setStartsAt(e.target.value)}
+              required
+            />
+          </label>
+
+          <label className="field">
+            <span>Koniec</span>
+            <input
+              type="datetime-local"
+              value={endsAt}
+              onChange={(e) => setEndsAt(e.target.value)}
+              required
+            />
+          </label>
+
+          <div className="form-actions">
+            <button type="submit" className="button" disabled={submitting}>
+              {submitting ? "Tworzenie rezerwacji..." : "Zarezerwuj"}
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      {/* ── Lista rezerwacji ── */}
       <div className="card">
         <h3 style={{ margin: "0 0 16px" }}>Moje rezerwacje</h3>
         {reservations.length === 0 ? (
@@ -168,11 +339,7 @@ export default function Reservations({ auth }: Props) {
                     <h3>{r.parkingLotName}</h3>
                     <p>{r.parkingLotAddress}</p>
                   </div>
-                  <span className={
-                    r.status === "CONFIRMED" ? "badge badge--success"
-                    : r.status === "CANCELLED" ? "badge badge--danger"
-                    : "badge"
-                  }>
+                  <span className={statusClass(r.status)}>
                     {statusLabel(r.status)}
                   </span>
                 </div>
@@ -180,16 +347,33 @@ export default function Reservations({ auth }: Props) {
                   <div><dt>Rezerwacja</dt><dd>#{r.id}</dd></div>
                   <div><dt>Początek</dt><dd>{formatDateTime(r.startsAt)}</dd></div>
                   <div><dt>Koniec</dt><dd>{formatDateTime(r.endsAt)}</dd></div>
-                  <div><dt>Utworzono</dt><dd>{formatDateTime(r.createdAt)}</dd></div>
+                  <div><dt>Szacowana kwota</dt><dd>
+                    {r.estimatedAmount != null ? `${r.estimatedAmount.toFixed(2)} ${r.currency ?? "PLN"}` : "—"}
+                  </dd></div>
                 </dl>
-                {r.status === "CONFIRMED" ? (
+                {(r.status === "CONFIRMED" || r.status === "PENDING_PAYMENT") ? (
                   <div className="result-card__actions">
+                    {r.status === "PENDING_PAYMENT" && r.paymentToken ? (
+                      <button
+                        type="button"
+                        className="button"
+                        onClick={() => setPaymentStep({
+                          reservationId: r.id,
+                          parkingName: r.parkingLotName,
+                          amount: r.estimatedAmount,
+                          currency: r.currency,
+                          token: r.paymentToken!
+                        })}
+                      >
+                        Dokończ płatność
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       className="button button--ghost"
                       onClick={() => void handleCancel(r.id)}
                     >
-                      Anuluj rezerwację
+                      Anuluj
                     </button>
                   </div>
                 ) : null}

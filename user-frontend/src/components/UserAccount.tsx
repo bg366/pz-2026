@@ -4,6 +4,7 @@ import {
   login,
   register,
   updateProfile,
+  changePassword,
   getVehicles,
   addVehicle,
   updateVehicle,
@@ -15,6 +16,16 @@ import {
 import type { AuthState, FuelType, EmissionStandard, UserVehicle, UserVehicleRequest } from "../api/types";
 
 export type { AuthState, UserVehicle };
+
+function validatePassword(pw: string): string[] {
+  const errors: string[] = [];
+  if (pw.length < 8) errors.push("Min. 8 znaków");
+  if (!/[A-Z]/.test(pw)) errors.push("Przynajmniej jedna wielka litera");
+  if (!/[a-z]/.test(pw)) errors.push("Przynajmniej jedna mała litera");
+  if (!/[0-9]/.test(pw)) errors.push("Przynajmniej jedna cyfra");
+  if (!/[^A-Za-z0-9]/.test(pw)) errors.push("Przynajmniej jeden znak specjalny (!@#$%...)");
+  return errors;
+}
 
 const FUEL_LABELS: Record<string, string> = { PETROL: "Benzyna", DIESEL: "Diesel", LPG: "LPG", HYBRID: "Hybryda", ELECTRIC: "Elektryczny" };
 const EMISSION_LABELS: Record<string, string> = { EURO_1: "Euro 1", EURO_2: "Euro 2", EURO_3: "Euro 3", EURO_4: "Euro 4", EURO_5: "Euro 5", EURO_6: "Euro 6", ELECTRIC: "Elektryczny" };
@@ -56,8 +67,12 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
   const [lastName, setLastName] = useState("Kierowca");
   const [email, setEmail] = useState("user@krakow-parking.local");
   const [password, setPassword] = useState("User12345!");
+  const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
   const [profileFirstName, setProfileFirstName] = useState("");
   const [profileLastName, setProfileLastName] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [vehicles, setVehicles] = useState<UserVehicle[]>([]);
   const [vehicleForm, setVehicleForm] = useState<VehicleFormState>(emptyVehicle);
   const [editingVehicleId, setEditingVehicleId] = useState<number | null>(null);
@@ -87,6 +102,18 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
     event.preventDefault();
     setError(null);
     setStatus(null);
+
+    if (mode === "register") {
+      const pwErrors = validatePassword(password);
+      if (pwErrors.length > 0) {
+        setError("Hasło nie spełnia wymagań: " + pwErrors.join(", ") + ".");
+        return;
+      }
+      if (password !== registerConfirmPassword) {
+        setError("Hasło i jego potwierdzenie nie są identyczne.");
+        return;
+      }
+    }
 
     try {
       const payload =
@@ -120,6 +147,34 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
       setStatus("Zapisano profil.");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Nie udało się zapisać profilu.");
+    }
+  }
+
+  async function submitPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setStatus(null);
+
+    const pwErrors = validatePassword(newPassword);
+    if (pwErrors.length > 0) {
+      setError("Nowe hasło nie spełnia wymagań: " + pwErrors.join(", ") + ".");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("Nowe hasło i potwierdzenie nie są takie same.");
+      return;
+    }
+
+    try {
+      const payload = await changePassword(currentPassword, newPassword, confirmPassword);
+      saveAuth(payload);
+      onAuthChange(payload);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setStatus("Zmieniono hasło.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Nie udało się zmienić hasła.");
     }
   }
 
@@ -239,6 +294,35 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
             <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
           </label>
 
+          {mode === "register" ? (
+            <>
+              <label className="field">
+                <span>Powtórz hasło</span>
+                <input
+                  type="password"
+                  value={registerConfirmPassword}
+                  onChange={(event) => setRegisterConfirmPassword(event.target.value)}
+                  required
+                />
+              </label>
+              {password.length > 0 ? (
+                <div style={{ fontSize: "12px", color: "#6b7280", display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                  {[
+                    { ok: password.length >= 8, label: "8+ znaków" },
+                    { ok: /[A-Z]/.test(password), label: "Wielka litera" },
+                    { ok: /[a-z]/.test(password), label: "Mała litera" },
+                    { ok: /[0-9]/.test(password), label: "Cyfra" },
+                    { ok: /[^A-Za-z0-9]/.test(password), label: "Znak specjalny" },
+                  ].map(({ ok, label }) => (
+                    <span key={label} style={{ color: ok ? "#16a34a" : "#dc2626", fontWeight: 500 }}>
+                      {ok ? "✓" : "✗"} {label}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </>
+          ) : null}
+
           {error ? <div className="feedback feedback--error">{error}</div> : null}
 
           <div className="form-actions">
@@ -283,6 +367,41 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
         </label>
         <div className="form-actions form-grid__wide">
           <button type="submit" className="button">Zapisz profil</button>
+        </div>
+      </form>
+
+      <form className="card form-grid form-grid--three" onSubmit={submitPassword}>
+        <label className="field">
+          <span>Aktualne hasło</span>
+          <input
+            type="password"
+            value={currentPassword}
+            onChange={(event) => setCurrentPassword(event.target.value)}
+            required
+          />
+        </label>
+        <label className="field">
+          <span>Nowe hasło</span>
+          <input
+            type="password"
+            minLength={8}
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+            required
+          />
+        </label>
+        <label className="field">
+          <span>Powtórz nowe hasło</span>
+          <input
+            type="password"
+            minLength={8}
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+            required
+          />
+        </label>
+        <div className="form-actions form-grid__wide">
+          <button type="submit" className="button">Zmień hasło</button>
         </div>
       </form>
 

@@ -10,6 +10,7 @@ const ParkingMap = lazy(() => import("./ParkingMap"));
 
 type ParkingSearchProps = {
   activeVehicle: UserVehicle | null;
+  onReserve: (parkingLotId: number) => void;
 };
 
 const initialForm = {
@@ -19,15 +20,15 @@ const initialForm = {
   name: "",
   zone: "",
   maxPricePerHour: "",
-  durationMinutes: "",
+  durationMinutes: "60",
   onlyAvailable: false,
   openNow: false,
-  sort: "DISTANCE",
+  sort: "ID",
   fuelType: "" as FuelType | "",
   emissionStandard: "" as EmissionStandard | ""
 };
 
-export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
+export default function ParkingSearch({ activeVehicle, onReserve }: ParkingSearchProps) {
   const [form, setForm] = useState(initialForm);
   const [results, setResults] = useState<ParkingSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -107,8 +108,20 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
     return `https://www.google.com/maps/dir/?api=1&destination=${result.latitude},${result.longitude}`;
   }
 
-  function buildAppleMapsUrl(result: ParkingSearchResult) {
+function buildAppleMapsUrl(result: ParkingSearchResult) {
     return `https://maps.apple.com/?daddr=${result.latitude},${result.longitude}`;
+  }
+
+  function sctReasonLabel(reason: string): string {
+    const labels: Record<string, string> = {
+      "No vehicle SCT data was provided.": "Nie podano danych pojazdu do weryfikacji SCT.",
+      "Vehicle meets SCT requirements.": "Pojazd spełnia wymagania SCT.",
+      "Vehicle does not meet general SCT requirements; only designated SCT spots are available.":
+        "Pojazd nie spełnia ogólnych wymagań SCT; dostępne są tylko wyznaczone miejsca SCT.",
+      "Vehicle does not meet SCT requirements and there are no designated SCT spots available.":
+        "Pojazd nie spełnia wymagań SCT i nie ma dostępnych wyznaczonych miejsc SCT."
+    };
+    return labels[reason] ?? reason;
   }
 
   return (
@@ -214,6 +227,7 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
             onChange={(event) => setForm((current) => ({ ...current, sort: event.target.value }))}
           >
             <option value="DISTANCE">Odległość</option>
+            <option value="ID">ID parkingu</option>
             <option value="PRICE">Cena</option>
             <option value="AVAILABLE_SPOTS">Wolne miejsca</option>
           </select>
@@ -345,6 +359,7 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
             </div>
 
             <dl className="details">
+              <div><dt>ID parkingu</dt><dd>#{result.id}</dd></div>
               <div><dt>Odległość</dt><dd>{result.distanceKm} km</dd></div>
               <div><dt>Strefa</dt><dd>{result.zone === "ZONE_A" ? "Strefa A" : result.zone === "ZONE_B" ? "Strefa B" : "Strefa C"}</dd></div>
               <div><dt>Dostępne miejsca</dt><dd>{result.availableSpots}</dd></div>
@@ -369,7 +384,7 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
                 </dd>
               </div>
               <div><dt>Typ parkingu</dt><dd>{result.parkingType === "PUBLIC" ? "Publiczny" : result.parkingType === "PRIVATE" ? "Prywatny" : result.parkingType === "PARK_AND_RIDE" ? "Park & Ride" : "Podziemny"}</dd></div>
-              <div><dt>Status SCT</dt><dd>{result.permissionReason}</dd></div>
+              <div><dt>Status SCT</dt><dd>{sctReasonLabel(result.permissionReason)}</dd></div>
             </dl>
 
             <div className="result-card__actions">
@@ -389,6 +404,14 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
               >
                 Apple Maps
               </a>
+              <button
+                type="button"
+                className="button"
+                onClick={() => onReserve(result.id)}
+                disabled={result.availableSpots <= 0}
+              >
+                Rezerwuj
+              </button>
             </div>
           </article>
         ))}

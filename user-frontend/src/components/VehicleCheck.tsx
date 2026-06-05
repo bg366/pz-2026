@@ -16,6 +16,20 @@ export default function VehicleCheck({ activeVehicle }: VehicleCheckProps) {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ canEnter: boolean; reason: string } | null>(null);
 
+  function reasonLabel(reason: string): string {
+    const labels: Record<string, string> = {
+      "Provide registrationNumber or both fuelType and emissionStandard.":
+        "Podaj numer rejestracyjny albo typ paliwa oraz normę emisji.",
+      "No active SCT restriction was found for the selected zone.":
+        "Dla wybranej strefy nie znaleziono aktywnego ograniczenia SCT.",
+      "Entry is not allowed for this fuel type in the selected zone.":
+        "Wjazd dla tego typu paliwa w wybranej strefie jest niedozwolony.",
+      "Vehicle is electric, so entry is allowed.":
+        "Pojazd jest elektryczny, więc wjazd jest dozwolony."
+    };
+    return labels[reason] ?? reason;
+  }
+
   useEffect(() => {
     if (!activeVehicle) return;
     setRegistrationNumber(activeVehicle.registrationNumber);
@@ -126,7 +140,7 @@ export default function VehicleCheck({ activeVehicle }: VehicleCheckProps) {
               {result.canEnter ? "OK" : "NIE"}
             </span>
           </div>
-          <p className="result-reason">{result.reason}</p>
+          <p className="result-reason">{reasonLabel(result.reason)}</p>
         </article>
       ) : null}
     </div>

@@ -2,7 +2,7 @@ export type FuelType = "PETROL" | "DIESEL" | "LPG" | "HYBRID" | "ELECTRIC";
 export type EmissionStandard = "EURO_1" | "EURO_2" | "EURO_3" | "EURO_4" | "EURO_5" | "EURO_6" | "ELECTRIC";
 export type ParkingZone = "ZONE_A" | "ZONE_B" | "ZONE_C";
 export type ParkingPermission = "ALL_SPOTS" | "SCT_SPOTS_ONLY" | "NOT_ALLOWED";
-export type ParkingStatus = "ACTIVE" | "INACTIVE" | "TEMPORARILY_CLOSED";
+export type ParkingStatus = "ACTIVE" | "INACTIVE" | "TEMPORARILY_CLOSED" | "PENDING_APPROVAL";
 
 export type AuthState = {
   email: string;
@@ -65,7 +65,7 @@ export type VehicleCheckResponse = {
   reason: string;
 };
 
-export type ReservationStatus = "CONFIRMED" | "CANCELLED" | "COMPLETED" | "EXPIRED";
+export type ReservationStatus = "PENDING_PAYMENT" | "CONFIRMED" | "CANCELLED" | "COMPLETED" | "EXPIRED";
 
 export type Reservation = {
   id: number;
@@ -76,6 +76,10 @@ export type Reservation = {
   startsAt: string;
   endsAt: string;
   createdAt: string;
+  estimatedAmount: number | null;
+  currency: string | null;
+  pricingMode: string | null;
+  paymentToken: string | null;
 };
 
 export type ReservationRequest = {
@@ -91,6 +95,26 @@ export type OwnerParkingSpot = {
   occupied: number;
 };
 
+export type Price = {
+  id: number;
+  zone: ParkingZone | null;
+  parkingLotId: number | null;
+  firstHourPrice: number;
+  secondHourPrice: number;
+  thirdHourPrice: number;
+  nextHourPrice: number;
+  dailyPrice: number;
+  currency: string;
+};
+
+export type PriceForm = {
+  firstHourPrice: string;
+  secondHourPrice: string;
+  thirdHourPrice: string;
+  nextHourPrice: string;
+  dailyPrice: string;
+};
+
 export type OwnerParkingLot = {
   id: number;
   name: string;
@@ -104,9 +128,23 @@ export type OwnerParkingLot = {
   openingHours: string;
   parkingType: string;
   spots: OwnerParkingSpot[];
+  price: Price | null;
 };
 
-export type NotificationType = "RESERVATION_EXPIRING" | "RESERVATION_EXPIRED";
+export type OwnerParkingCreateRequest = {
+  name: string;
+  address: string;
+  description: string | null;
+  zone: ParkingZone;
+  latitude: number;
+  longitude: number;
+  totalSpots: number;
+  totalSctSpots: number;
+  openingHours: string;
+  parkingType: string;
+};
+
+export type NotificationType = "RESERVATION_EXPIRING" | "RESERVATION_EXPIRED" | "RESERVATION_CONFIRMED";
 
 export type AppNotification = {
   id: number;

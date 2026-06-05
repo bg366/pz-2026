@@ -9,8 +9,11 @@ function formatDate(iso: string): string {
 }
 
 function typeLabel(type: AppNotification["type"]): string {
-  if (type === "RESERVATION_EXPIRING") return "Kończąca się rezerwacja";
-  return "Rezerwacja wygasła";
+  switch (type) {
+    case "RESERVATION_CONFIRMED": return "Rezerwacja potwierdzona";
+    case "RESERVATION_EXPIRING": return "Kończąca się rezerwacja";
+    case "RESERVATION_EXPIRED": return "Rezerwacja wygasła";
+  }
 }
 
 export default function Notifications({ auth }: Props) {
