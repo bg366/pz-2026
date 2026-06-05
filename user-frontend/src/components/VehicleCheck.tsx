@@ -1,23 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import type { UserVehicle } from "./UserAccount";
-
-type FuelType = "" | "PETROL" | "DIESEL" | "LPG" | "HYBRID" | "ELECTRIC";
-type EmissionStandard =
-  | ""
-  | "EURO_1"
-  | "EURO_2"
-  | "EURO_3"
-  | "EURO_4"
-  | "EURO_5"
-  | "EURO_6"
-  | "ELECTRIC";
-type Zone = "ZONE_A" | "ZONE_B" | "ZONE_C";
-
-type VehicleCheckResponse = {
-  canEnter: boolean;
-  reason: string;
-};
+import { checkVehicle } from "../api/client";
+import type { FuelType, EmissionStandard, ParkingZone, UserVehicle } from "../api/types";
 
 type VehicleCheckProps = {
   activeVehicle: UserVehicle | null;
@@ -25,18 +9,15 @@ type VehicleCheckProps = {
 
 export default function VehicleCheck({ activeVehicle }: VehicleCheckProps) {
   const [registrationNumber, setRegistrationNumber] = useState("");
-  const [fuelType, setFuelType] = useState<FuelType>("");
-  const [emissionStandard, setEmissionStandard] = useState<EmissionStandard>("");
-  const [zone, setZone] = useState<Zone>("ZONE_A");
+  const [fuelType, setFuelType] = useState<FuelType | "">("");
+  const [emissionStandard, setEmissionStandard] = useState<EmissionStandard | "">("");
+  const [zone, setZone] = useState<ParkingZone>("ZONE_A");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<VehicleCheckResponse | null>(null);
+  const [result, setResult] = useState<{ canEnter: boolean; reason: string } | null>(null);
 
   useEffect(() => {
-    if (!activeVehicle) {
-      return;
-    }
-
+    if (!activeVehicle) return;
     setRegistrationNumber(activeVehicle.registrationNumber);
     setFuelType(activeVehicle.fuelType);
     setEmissionStandard(activeVehicle.emissionStandard);
@@ -49,24 +30,13 @@ export default function VehicleCheck({ activeVehicle }: VehicleCheckProps) {
     setResult(null);
 
     try {
-      const response = await fetch("/api/vehicles/check", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          registrationNumber: registrationNumber || null,
-          fuelType: fuelType || null,
-          emissionStandard: emissionStandard || null,
-          zone
-        })
+      const data = await checkVehicle({
+        registrationNumber: registrationNumber || null,
+        fuelType: fuelType || null,
+        emissionStandard: emissionStandard || null,
+        zone
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      setResult((await response.json()) as VehicleCheckResponse);
+      setResult(data);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Nie udało się sprawdzić pojazdu.");
     } finally {
@@ -102,7 +72,7 @@ export default function VehicleCheck({ activeVehicle }: VehicleCheckProps) {
 
         <label className="field">
           <span>Typ paliwa</span>
-          <select value={fuelType} onChange={(event) => setFuelType(event.target.value as FuelType)}>
+          <select value={fuelType} onChange={(event) => setFuelType(event.target.value as FuelType | "")}>
             <option value="">Wybierz</option>
             <option value="PETROL">PETROL</option>
             <option value="DIESEL">DIESEL</option>
@@ -116,7 +86,7 @@ export default function VehicleCheck({ activeVehicle }: VehicleCheckProps) {
           <span>Norma emisji</span>
           <select
             value={emissionStandard}
-            onChange={(event) => setEmissionStandard(event.target.value as EmissionStandard)}
+            onChange={(event) => setEmissionStandard(event.target.value as EmissionStandard | "")}
           >
             <option value="">Wybierz</option>
             <option value="EURO_1">EURO_1</option>
@@ -131,7 +101,7 @@ export default function VehicleCheck({ activeVehicle }: VehicleCheckProps) {
 
         <label className="field">
           <span>Strefa</span>
-          <select value={zone} onChange={(event) => setZone(event.target.value as Zone)}>
+          <select value={zone} onChange={(event) => setZone(event.target.value as ParkingZone)}>
             <option value="ZONE_A">ZONE_A</option>
             <option value="ZONE_B">ZONE_B</option>
             <option value="ZONE_C">ZONE_C</option>
@@ -156,7 +126,6 @@ export default function VehicleCheck({ activeVehicle }: VehicleCheckProps) {
               {result.canEnter ? "OK" : "NIE"}
             </span>
           </div>
-
           <p className="result-reason">{result.reason}</p>
         </article>
       ) : null}

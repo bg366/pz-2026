@@ -1,36 +1,20 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import {
+  login,
+  register,
+  updateProfile,
+  getVehicles,
+  addVehicle,
+  updateVehicle,
+  deleteVehicle,
+  setActiveVehicle,
+  saveAuth,
+  clearAuth
+} from "../api/client";
+import type { AuthState, FuelType, EmissionStandard, UserVehicle, UserVehicleRequest } from "../api/types";
 
-type FuelType = "PETROL" | "DIESEL" | "LPG" | "HYBRID" | "ELECTRIC";
-type EmissionStandard = "EURO_1" | "EURO_2" | "EURO_3" | "EURO_4" | "EURO_5" | "EURO_6" | "ELECTRIC";
-
-export type AuthState = {
-  email: string;
-  firstName: string;
-  lastName: string;
-  role: "ADMIN" | "USER";
-  token: string;
-};
-
-export type UserVehicle = {
-  id: number;
-  brand: string;
-  model: string;
-  registrationNumber: string;
-  fuelType: FuelType;
-  emissionStandard: EmissionStandard;
-  productionYear: number;
-  vehicleType: string;
-  sctCompliant: boolean;
-  active: boolean;
-};
-
-type UserProfilePayload = {
-  email: string;
-  firstName: string;
-  lastName: string;
-  role: "ADMIN" | "USER";
-};
+export type { AuthState, UserVehicle };
 
 type UserAccountProps = {
   auth: AuthState | null;
@@ -38,28 +22,27 @@ type UserAccountProps = {
   onActiveVehicleChange: (vehicle: UserVehicle | null) => void;
 };
 
-const authStorageKey = "krakow-parking-user-auth";
+type VehicleFormState = {
+  brand: string;
+  model: string;
+  registrationNumber: string;
+  fuelType: FuelType;
+  emissionStandard: EmissionStandard;
+  productionYear: string;
+  vehicleType: string;
+  active: boolean;
+};
 
-const emptyVehicle = {
+const emptyVehicle: VehicleFormState = {
   brand: "",
   model: "",
   registrationNumber: "",
-  fuelType: "PETROL" as FuelType,
-  emissionStandard: "EURO_6" as EmissionStandard,
+  fuelType: "PETROL",
+  emissionStandard: "EURO_6",
   productionYear: "2020",
   vehicleType: "CAR",
   active: true
 };
-
-export function readStoredAuth(): AuthState | null {
-  try {
-    const stored = window.localStorage.getItem(authStorageKey);
-    return stored ? (JSON.parse(stored) as AuthState) : null;
-  } catch {
-    window.localStorage.removeItem(authStorageKey);
-    return null;
-  }
-}
 
 export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange }: UserAccountProps) {
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -70,63 +53,15 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
   const [profileFirstName, setProfileFirstName] = useState("");
   const [profileLastName, setProfileLastName] = useState("");
   const [vehicles, setVehicles] = useState<UserVehicle[]>([]);
-  const [vehicleForm, setVehicleForm] = useState(emptyVehicle);
+  const [vehicleForm, setVehicleForm] = useState<VehicleFormState>(emptyVehicle);
   const [editingVehicleId, setEditingVehicleId] = useState<number | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  function authHeaders() {
-    return {
-      Authorization: `Basic ${auth?.token ?? ""}`
-    };
-  }
-
-  async function submitAuth(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setStatus(null);
-
-    try {
-      const response = await fetch(mode === "login" ? "/api/auth/login" : "/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(
-          mode === "login"
-            ? { email, password }
-            : { firstName, lastName, email, password }
-        )
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const payload = (await response.json()) as AuthState;
-      window.localStorage.setItem(authStorageKey, JSON.stringify(payload));
-      onAuthChange(payload);
-      setStatus("Zalogowano.");
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Nie udalo sie zalogowac.");
-    }
-  }
-
   async function loadVehicles() {
-    if (!auth) {
-      return;
-    }
-
-    const response = await fetch("/api/me/vehicles", {
-      headers: authHeaders()
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const payload = (await response.json()) as UserVehicle[];
+    const payload = await getVehicles();
     setVehicles(payload);
-    onActiveVehicleChange(payload.find((vehicle) => vehicle.active) ?? null);
+    onActiveVehicleChange(payload.find((v) => v.active) ?? null);
   }
 
   useEffect(() => {
@@ -135,13 +70,30 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
       onActiveVehicleChange(null);
       return;
     }
-
     setProfileFirstName(auth.firstName);
     setProfileLastName(auth.lastName);
     void loadVehicles().catch((requestError) =>
-      setError(requestError instanceof Error ? requestError.message : "Nie udalo sie pobrac pojazdow.")
+      setError(requestError instanceof Error ? requestError.message : "Nie udało się pobrać pojazdów.")
     );
   }, [auth]);
+
+  async function submitAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setStatus(null);
+
+    try {
+      const payload =
+        mode === "login"
+          ? await login(email, password)
+          : await register(firstName, lastName, email, password);
+      saveAuth(payload);
+      onAuthChange(payload);
+      setStatus("Zalogowano.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Nie udało się zalogować.");
+    }
+  }
 
   async function submitProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -149,23 +101,7 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
     setStatus(null);
 
     try {
-      const response = await fetch("/api/me", {
-        method: "PUT",
-        headers: {
-          ...authHeaders(),
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          firstName: profileFirstName,
-          lastName: profileLastName
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      const payload = (await response.json()) as UserProfilePayload;
+      const payload = await updateProfile(profileFirstName, profileLastName);
       const updatedAuth: AuthState = {
         email: payload.email,
         firstName: payload.firstName,
@@ -173,11 +109,11 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
         role: payload.role,
         token: auth?.token ?? ""
       };
-      window.localStorage.setItem(authStorageKey, JSON.stringify(updatedAuth));
+      saveAuth(updatedAuth);
       onAuthChange(updatedAuth);
       setStatus("Zapisano profil.");
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Nie udalo sie zapisac profilu.");
+      setError(requestError instanceof Error ? requestError.message : "Nie udało się zapisać profilu.");
     }
   }
 
@@ -186,32 +122,30 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
     setError(null);
     setStatus(null);
 
+    const data: UserVehicleRequest = {
+      brand: vehicleForm.brand,
+      model: vehicleForm.model,
+      registrationNumber: vehicleForm.registrationNumber.toUpperCase(),
+      fuelType: vehicleForm.fuelType as FuelType,
+      emissionStandard: vehicleForm.emissionStandard as EmissionStandard,
+      productionYear: Number(vehicleForm.productionYear),
+      vehicleType: vehicleForm.vehicleType,
+      active: vehicleForm.active
+    };
+
     try {
-      const response = await fetch(
-        editingVehicleId ? `/api/me/vehicles/${editingVehicleId}` : "/api/me/vehicles",
-        {
-        method: editingVehicleId ? "PUT" : "POST",
-        headers: {
-          ...authHeaders(),
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          ...vehicleForm,
-          registrationNumber: vehicleForm.registrationNumber.toUpperCase(),
-          productionYear: Number(vehicleForm.productionYear)
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
+      if (editingVehicleId) {
+        await updateVehicle(editingVehicleId, data);
+        setStatus("Zapisano pojazd.");
+      } else {
+        await addVehicle(data);
+        setStatus("Dodano pojazd.");
       }
-
       setVehicleForm(emptyVehicle);
       setEditingVehicleId(null);
-      setStatus(editingVehicleId ? "Zapisano pojazd." : "Dodano pojazd.");
       await loadVehicles();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Nie udalo sie zapisac pojazdu.");
+      setError(requestError instanceof Error ? requestError.message : "Nie udało się zapisać pojazdu.");
     }
   }
 
@@ -237,46 +171,32 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
     setStatus(null);
   }
 
-  async function setActiveVehicle(vehicleId: number) {
+  async function handleSetActiveVehicle(vehicleId: number) {
     setError(null);
     setStatus(null);
-
     try {
-      const response = await fetch(`/api/me/vehicles/${vehicleId}/active`, {
-        method: "PATCH",
-        headers: authHeaders()
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
+      await setActiveVehicle(vehicleId);
       setStatus("Zmieniono aktywny pojazd.");
       await loadVehicles();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Nie udalo sie ustawic aktywnego pojazdu.");
+      setError(requestError instanceof Error ? requestError.message : "Nie udało się ustawić aktywnego pojazdu.");
     }
   }
 
-  async function deleteVehicle(vehicleId: number) {
+  async function handleDeleteVehicle(vehicleId: number) {
     setError(null);
     setStatus(null);
-
     try {
-      const response = await fetch(`/api/me/vehicles/${vehicleId}`, {
-        method: "DELETE",
-        headers: authHeaders()
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      setStatus("Usunieto pojazd.");
+      await deleteVehicle(vehicleId);
+      setStatus("Usunięto pojazd.");
       await loadVehicles();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Nie udalo sie usunac pojazdu.");
+      setError(requestError instanceof Error ? requestError.message : "Nie udało się usunąć pojazdu.");
     }
   }
 
   function logout() {
-    window.localStorage.removeItem(authStorageKey);
+    clearAuth();
     onAuthChange(null);
     onActiveVehicleChange(null);
     setVehicles([]);
@@ -286,15 +206,15 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
     return (
       <div className="stack">
         <div className="section-heading">
-          <h2>{mode === "login" ? "Zaloguj sie" : "Zarejestruj konto"}</h2>
-          <p>Konto pozwala zapisac pojazdy i uzywac aktywnego pojazdu w wyszukiwarce.</p>
+          <h2>{mode === "login" ? "Zaloguj się" : "Zarejestruj konto"}</h2>
+          <p>Konto pozwala zapisać pojazdy i używać aktywnego pojazdu w wyszukiwarce.</p>
         </div>
 
         <form className="card form-grid" onSubmit={submitAuth}>
           {mode === "register" ? (
             <div className="form-grid form-grid--three">
               <label className="field">
-                <span>Imie</span>
+                <span>Imię</span>
                 <input value={firstName} onChange={(event) => setFirstName(event.target.value)} required />
               </label>
               <label className="field">
@@ -309,15 +229,19 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
             <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
           </label>
           <label className="field">
-            <span>Haslo</span>
+            <span>Hasło</span>
             <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
           </label>
 
           {error ? <div className="feedback feedback--error">{error}</div> : null}
 
           <div className="form-actions">
-            <button type="button" className="button button--ghost" onClick={() => setMode(mode === "login" ? "register" : "login")}>
-              {mode === "login" ? "Zaloz konto" : "Mam konto"}
+            <button
+              type="button"
+              className="button button--ghost"
+              onClick={() => setMode(mode === "login" ? "register" : "login")}
+            >
+              {mode === "login" ? "Załóż konto" : "Mam konto"}
             </button>
             <button type="submit" className="button">
               {mode === "login" ? "Zaloguj" : "Zarejestruj"}
@@ -332,7 +256,7 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
     <div className="stack">
       <div className="section-heading">
         <h2>Profil i pojazdy</h2>
-        <p>{auth.firstName} {auth.lastName} - {auth.email}</p>
+        <p>{auth.firstName} {auth.lastName} — {auth.email}</p>
       </div>
 
       <div className="form-actions">
@@ -344,7 +268,7 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
 
       <form className="card form-grid form-grid--three" onSubmit={submitProfile}>
         <label className="field">
-          <span>Imie</span>
+          <span>Imię</span>
           <input value={profileFirstName} onChange={(event) => setProfileFirstName(event.target.value)} required />
         </label>
         <label className="field">
@@ -359,19 +283,36 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
       <form className="card form-grid form-grid--three" onSubmit={submitVehicle}>
         <label className="field">
           <span>Marka</span>
-          <input value={vehicleForm.brand} onChange={(event) => setVehicleForm((current) => ({ ...current, brand: event.target.value }))} required />
+          <input
+            value={vehicleForm.brand}
+            onChange={(event) => setVehicleForm((current) => ({ ...current, brand: event.target.value }))}
+            required
+          />
         </label>
         <label className="field">
           <span>Model</span>
-          <input value={vehicleForm.model} onChange={(event) => setVehicleForm((current) => ({ ...current, model: event.target.value }))} required />
+          <input
+            value={vehicleForm.model}
+            onChange={(event) => setVehicleForm((current) => ({ ...current, model: event.target.value }))}
+            required
+          />
         </label>
         <label className="field">
           <span>Numer rejestracyjny</span>
-          <input value={vehicleForm.registrationNumber} onChange={(event) => setVehicleForm((current) => ({ ...current, registrationNumber: event.target.value.toUpperCase() }))} required />
+          <input
+            value={vehicleForm.registrationNumber}
+            onChange={(event) =>
+              setVehicleForm((current) => ({ ...current, registrationNumber: event.target.value.toUpperCase() }))
+            }
+            required
+          />
         </label>
         <label className="field">
           <span>Paliwo</span>
-          <select value={vehicleForm.fuelType} onChange={(event) => setVehicleForm((current) => ({ ...current, fuelType: event.target.value as FuelType }))}>
+          <select
+            value={vehicleForm.fuelType}
+            onChange={(event) => setVehicleForm((current) => ({ ...current, fuelType: event.target.value as FuelType }))}
+          >
             <option value="PETROL">PETROL</option>
             <option value="DIESEL">DIESEL</option>
             <option value="LPG">LPG</option>
@@ -381,7 +322,12 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
         </label>
         <label className="field">
           <span>Norma emisji</span>
-          <select value={vehicleForm.emissionStandard} onChange={(event) => setVehicleForm((current) => ({ ...current, emissionStandard: event.target.value as EmissionStandard }))}>
+          <select
+            value={vehicleForm.emissionStandard}
+            onChange={(event) =>
+              setVehicleForm((current) => ({ ...current, emissionStandard: event.target.value as EmissionStandard }))
+            }
+          >
             <option value="EURO_1">EURO_1</option>
             <option value="EURO_2">EURO_2</option>
             <option value="EURO_3">EURO_3</option>
@@ -393,7 +339,12 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
         </label>
         <label className="field">
           <span>Rok produkcji</span>
-          <input type="number" value={vehicleForm.productionYear} onChange={(event) => setVehicleForm((current) => ({ ...current, productionYear: event.target.value }))} required />
+          <input
+            type="number"
+            value={vehicleForm.productionYear}
+            onChange={(event) => setVehicleForm((current) => ({ ...current, productionYear: event.target.value }))}
+            required
+          />
         </label>
 
         <div className="form-actions form-grid__wide">
@@ -402,7 +353,7 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
           </button>
           {editingVehicleId ? (
             <button type="button" className="button button--ghost" onClick={cancelVehicleEdit}>
-              Anuluj edycje
+              Anuluj edycję
             </button>
           ) : null}
         </div>
@@ -414,26 +365,36 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
             <div className="result-card__header">
               <div>
                 <h3>{vehicle.brand} {vehicle.model}</h3>
-                <p>{vehicle.registrationNumber} - {vehicle.productionYear}</p>
+                <p>{vehicle.registrationNumber} — {vehicle.productionYear}</p>
               </div>
-              <span className={vehicle.active ? "badge badge--success" : "badge"}>{vehicle.active ? "Aktywny" : vehicle.fuelType}</span>
+              <span className={vehicle.active ? "badge badge--success" : "badge"}>
+                {vehicle.active ? "Aktywny" : vehicle.fuelType}
+              </span>
             </div>
             <dl className="details">
               <div><dt>Paliwo</dt><dd>{vehicle.fuelType}</dd></div>
               <div><dt>Norma</dt><dd>{vehicle.emissionStandard}</dd></div>
-              <div><dt>SCT</dt><dd>{vehicle.sctCompliant ? "Spelnia" : "Wymaga sprawdzenia"}</dd></div>
+              <div><dt>SCT</dt><dd>{vehicle.sctCompliant ? "Spełnia" : "Wymaga sprawdzenia"}</dd></div>
             </dl>
             <div className="result-card__actions">
               <button type="button" className="button button--ghost" onClick={() => editVehicle(vehicle)}>
                 Edytuj
               </button>
               {!vehicle.active ? (
-                <button type="button" className="button button--ghost" onClick={() => void setActiveVehicle(vehicle.id)}>
+                <button
+                  type="button"
+                  className="button button--ghost"
+                  onClick={() => void handleSetActiveVehicle(vehicle.id)}
+                >
                   Ustaw aktywny
                 </button>
               ) : null}
-              <button type="button" className="button button--link" onClick={() => void deleteVehicle(vehicle.id)}>
-                Usun
+              <button
+                type="button"
+                className="button button--link"
+                onClick={() => void handleDeleteVehicle(vehicle.id)}
+              >
+                Usuń
               </button>
             </div>
           </article>

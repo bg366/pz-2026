@@ -1,7 +1,8 @@
 import { useState } from "react";
 import ParkingSearch from "./components/ParkingSearch";
-import UserAccount, { readStoredAuth } from "./components/UserAccount";
-import type { AuthState, UserVehicle } from "./components/UserAccount";
+import UserAccount from "./components/UserAccount";
+import { readStoredAuth } from "./api/client";
+import type { AuthState, UserVehicle } from "./api/types";
 import VehicleCheck from "./components/VehicleCheck";
 
 type View = "parking" | "vehicle" | "profile";

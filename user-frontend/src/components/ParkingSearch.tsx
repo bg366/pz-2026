@@ -1,43 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import type { UserVehicle } from "./UserAccount";
+import { searchParkings } from "../api/client";
+import type { FuelType, EmissionStandard, ParkingSearchResult, UserVehicle } from "../api/types";
 
-type FuelType = "" | "PETROL" | "DIESEL" | "LPG" | "HYBRID" | "ELECTRIC";
-type EmissionStandard =
-  | ""
-  | "EURO_1"
-  | "EURO_2"
-  | "EURO_3"
-  | "EURO_4"
-  | "EURO_5"
-  | "EURO_6"
-  | "ELECTRIC";
-
-type SearchResult = {
-  id: number;
-  name: string;
-  address: string;
-  description: string | null;
-  status: "ACTIVE" | "INACTIVE" | "TEMPORARILY_CLOSED";
-  zone: string;
-  latitude: number;
-  longitude: number;
-  distanceKm: number;
-  sctAllowed: boolean;
-  availableSpots: number;
-  availableRegularSpots: number;
-  availableSctSpots: number;
-  parkingPermission: "ALL_SPOTS" | "SCT_SPOTS_ONLY" | "NOT_ALLOWED";
-  permissionReason: string;
-  openingHours: string;
-  predictedAmount: number | null;
-  predictedPricingMode: string | null;
-  pricePerHour: number | null;
-  currency: string | null;
-  parkingType: string;
+type ParkingSearchProps = {
+  activeVehicle: UserVehicle | null;
 };
 
-const initialState = {
+const initialForm = {
   lat: "50.0615",
   lng: "19.9370",
   radiusKm: "5",
@@ -48,26 +18,19 @@ const initialState = {
   onlyAvailable: false,
   openNow: false,
   sort: "DISTANCE",
-  fuelType: "" as FuelType,
-  emissionStandard: "" as EmissionStandard
-};
-
-type ParkingSearchProps = {
-  activeVehicle: UserVehicle | null;
+  fuelType: "" as FuelType | "",
+  emissionStandard: "" as EmissionStandard | ""
 };
 
 export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
-  const [form, setForm] = useState(initialState);
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [form, setForm] = useState(initialForm);
+  const [results, setResults] = useState<ParkingSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
 
   useEffect(() => {
-    if (!activeVehicle) {
-      return;
-    }
-
+    if (!activeVehicle) return;
     setForm((current) => ({
       ...current,
       fuelType: activeVehicle.fuelType,
@@ -95,47 +58,21 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
     setHasSearched(true);
 
     try {
-      const params = new URLSearchParams({
+      const data = await searchParkings({
         lat: form.lat,
         lng: form.lng,
-        radiusKm: form.radiusKm
+        radiusKm: form.radiusKm,
+        name: form.name || undefined,
+        zone: form.zone || undefined,
+        maxPricePerHour: form.maxPricePerHour || undefined,
+        durationMinutes: form.durationMinutes || undefined,
+        onlyAvailable: form.onlyAvailable || undefined,
+        openNow: form.openNow || undefined,
+        sort: form.sort,
+        fuelType: form.fuelType || undefined,
+        emissionStandard: form.emissionStandard || undefined
       });
-
-      if (form.maxPricePerHour) {
-        params.set("maxPricePerHour", form.maxPricePerHour);
-      }
-      if (form.name) {
-        params.set("name", form.name);
-      }
-      if (form.zone) {
-        params.set("zone", form.zone);
-      }
-      if (form.durationMinutes) {
-        params.set("durationMinutes", form.durationMinutes);
-      }
-      if (form.onlyAvailable) {
-        params.set("onlyAvailable", "true");
-      }
-      if (form.openNow) {
-        params.set("openNow", "true");
-      }
-      params.set("sort", form.sort);
-
-      if (form.fuelType) {
-        params.set("fuelType", form.fuelType);
-      }
-
-      if (form.emissionStandard) {
-        params.set("emissionStandard", form.emissionStandard);
-      }
-
-      const response = await fetch(`/api/parking-lots/search?${params.toString()}`);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const payload = (await response.json()) as SearchResult[];
-      setResults(payload);
+      setResults(data);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Nie udało się pobrać wyników.");
     } finally {
@@ -148,7 +85,6 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
       setError("Geolokalizacja nie jest wspierana w tej przeglądarce.");
       return;
     }
-
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setForm((current) => ({
@@ -161,11 +97,11 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
     );
   }
 
-  function buildGoogleMapsUrl(result: SearchResult) {
+  function buildGoogleMapsUrl(result: ParkingSearchResult) {
     return `https://www.google.com/maps/dir/?api=1&destination=${result.latitude},${result.longitude}`;
   }
 
-  function buildAppleMapsUrl(result: SearchResult) {
+  function buildAppleMapsUrl(result: ParkingSearchResult) {
     return `https://maps.apple.com/?daddr=${result.latitude},${result.longitude}`;
   }
 
@@ -249,9 +185,7 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
             min="0"
             step="0.50"
             value={form.maxPricePerHour}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, maxPricePerHour: event.target.value }))
-            }
+            onChange={(event) => setForm((current) => ({ ...current, maxPricePerHour: event.target.value }))}
             placeholder="np. 6.00"
           />
         </label>
@@ -283,9 +217,7 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
           <span>Typ paliwa</span>
           <select
             value={form.fuelType}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, fuelType: event.target.value as FuelType }))
-            }
+            onChange={(event) => setForm((current) => ({ ...current, fuelType: event.target.value as FuelType | "" }))}
           >
             <option value="">Bez filtra</option>
             <option value="PETROL">PETROL</option>
@@ -301,10 +233,7 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
           <select
             value={form.emissionStandard}
             onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                emissionStandard: event.target.value as EmissionStandard
-              }))
+              setForm((current) => ({ ...current, emissionStandard: event.target.value as EmissionStandard | "" }))
             }
           >
             <option value="">Bez filtra</option>
@@ -380,34 +309,13 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
             </div>
 
             <dl className="details">
-              <div>
-                <dt>Odległość</dt>
-                <dd>{result.distanceKm} km</dd>
-              </div>
-              <div>
-                <dt>Strefa</dt>
-                <dd>{result.zone}</dd>
-              </div>
-              <div>
-                <dt>Dostępne miejsca</dt>
-                <dd>{result.availableSpots}</dd>
-              </div>
-              <div>
-                <dt>Miejsca regularne</dt>
-                <dd>{result.availableRegularSpots}</dd>
-              </div>
-              <div>
-                <dt>Miejsca SCT</dt>
-                <dd>{result.availableSctSpots}</dd>
-              </div>
-              <div>
-                <dt>Godziny</dt>
-                <dd>{result.openingHours}</dd>
-              </div>
-              <div>
-                <dt>Status</dt>
-                <dd>{result.status}</dd>
-              </div>
+              <div><dt>Odległość</dt><dd>{result.distanceKm} km</dd></div>
+              <div><dt>Strefa</dt><dd>{result.zone}</dd></div>
+              <div><dt>Dostępne miejsca</dt><dd>{result.availableSpots}</dd></div>
+              <div><dt>Miejsca regularne</dt><dd>{result.availableRegularSpots}</dd></div>
+              <div><dt>Miejsca SCT</dt><dd>{result.availableSctSpots}</dd></div>
+              <div><dt>Godziny</dt><dd>{result.openingHours}</dd></div>
+              <div><dt>Status</dt><dd>{result.status}</dd></div>
               <div>
                 <dt>Cena</dt>
                 <dd>
@@ -424,14 +332,8 @@ export default function ParkingSearch({ activeVehicle }: ParkingSearchProps) {
                     : "Podaj czas postoju"}
                 </dd>
               </div>
-              <div>
-                <dt>Typ parkingu</dt>
-                <dd>{result.parkingType}</dd>
-              </div>
-              <div>
-                <dt>Status SCT</dt>
-                <dd>{result.permissionReason}</dd>
-              </div>
+              <div><dt>Typ parkingu</dt><dd>{result.parkingType}</dd></div>
+              <div><dt>Status SCT</dt><dd>{result.permissionReason}</dd></div>
             </dl>
 
             <div className="result-card__actions">
