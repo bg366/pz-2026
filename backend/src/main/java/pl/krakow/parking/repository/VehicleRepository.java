@@ -32,4 +32,7 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
         String registrationNumber,
         Long id
     );
+
+    @Query("SELECT v FROM Vehicle v WHERE UPPER(v.registrationNumber) = UPPER(:plate) AND v.user IS NOT NULL ORDER BY v.id ASC")
+    List<Vehicle> findUserVehiclesByPlate(@Param("plate") String plate);
 }

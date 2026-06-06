@@ -44,6 +44,9 @@ public class Reservation {
     @Column(nullable = false, length = 20)
     private ReservationStatus status;
 
+    @Column(length = 20, nullable = false)
+    private String registrationNumber;
+
     @Column(nullable = false)
     private LocalDateTime startsAt;
 

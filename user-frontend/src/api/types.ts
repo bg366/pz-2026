@@ -75,6 +75,7 @@ export type Reservation = {
   parkingLotName: string;
   parkingLotAddress: string;
   status: ReservationStatus;
+  registrationNumber: string;
   startsAt: string;
   endsAt: string;
   createdAt: string;
@@ -86,6 +87,7 @@ export type Reservation = {
 
 export type ReservationRequest = {
   parkingLotId: number;
+  registrationNumber: string;
   startsAt: string;
   endsAt: string;
 };
@@ -147,7 +149,13 @@ export type OwnerParkingCreateRequest = {
   accessType: ParkingAccessType;
 };
 
-export type NotificationType = "RESERVATION_EXPIRING" | "RESERVATION_EXPIRED" | "RESERVATION_CONFIRMED";
+export type NotificationType =
+  | "RESERVATION_EXPIRING"
+  | "RESERVATION_EXPIRED"
+  | "RESERVATION_CONFIRMED"
+  | "SESSION_STARTED"
+  | "SESSION_PAID"
+  | "SESSION_ENDED";
 
 export type AppNotification = {
   id: number;
@@ -155,6 +163,7 @@ export type AppNotification = {
   message: string;
   read: boolean;
   reservationId: number | null;
+  sessionId: number | null;
   createdAt: string;
 };
 

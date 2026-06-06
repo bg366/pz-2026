@@ -158,7 +158,7 @@ export default function App() {
           ) : view === "vehicle" ? (
             <VehicleCheck activeVehicle={activeVehicle} />
           ) : view === "reservations" ? (
-            <Reservations auth={auth} initialParkingId={reservationParkingLotId} />
+            <Reservations auth={auth} initialParkingId={reservationParkingLotId} activeVehicle={activeVehicle} />
           ) : view === "sessions" ? (
             <ParkingSessions auth={auth} initialParkingId={sessionParkingLotId} />
           ) : view === "notifications" ? (

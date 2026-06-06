@@ -10,6 +10,7 @@ public record ReservationResponse(
     String parkingLotName,
     String parkingLotAddress,
     ReservationStatus status,
+    String registrationNumber,
     LocalDateTime startsAt,
     LocalDateTime endsAt,
     LocalDateTime createdAt,

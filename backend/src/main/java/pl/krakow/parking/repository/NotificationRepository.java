@@ -10,4 +10,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     List<Notification> findByUserEmailIgnoreCaseOrderByCreatedAtDesc(String email);
 
     boolean existsByReservationIdAndType(Long reservationId, NotificationType type);
+
+    boolean existsBySessionIdAndType(Long sessionId, NotificationType type);
 }

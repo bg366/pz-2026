@@ -13,6 +13,20 @@ function typeLabel(type: AppNotification["type"]): string {
     case "RESERVATION_CONFIRMED": return "Rezerwacja potwierdzona";
     case "RESERVATION_EXPIRING": return "Kończąca się rezerwacja";
     case "RESERVATION_EXPIRED": return "Rezerwacja wygasła";
+    case "SESSION_STARTED": return "Wjazd na parking";
+    case "SESSION_PAID": return "Płatność potwierdzona";
+    case "SESSION_ENDED": return "Wyjazd z parkingu";
+  }
+}
+
+function typeColor(type: AppNotification["type"]): string {
+  switch (type) {
+    case "SESSION_STARTED": return "#047857";
+    case "SESSION_PAID": return "#0891b2";
+    case "SESSION_ENDED": return "#6b7280";
+    case "RESERVATION_EXPIRING": return "#d97706";
+    case "RESERVATION_EXPIRED": return "#dc2626";
+    case "RESERVATION_CONFIRMED": return "#2563eb";
   }
 }
 
@@ -98,7 +112,7 @@ export default function Notifications({ auth }: Props) {
             }}
           >
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "#2563eb", marginBottom: "4px" }}>
+              <div style={{ fontSize: "0.75rem", fontWeight: 600, color: typeColor(n.type), marginBottom: "4px" }}>
                 {typeLabel(n.type)}
               </div>
               <div style={{ fontSize: "0.9rem", color: "#111827", marginBottom: "6px" }}>{n.message}</div>

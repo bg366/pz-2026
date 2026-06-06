@@ -142,7 +142,7 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
       const req = {
         parkingLotId: Number(parkingLotId),
         registrationNumber: plate.trim(),
-        ...(isOpen && plannedEndAt ? { plannedEndAt: new Date(plannedEndAt).toISOString().replace("Z", "") } : {})
+        ...(isOpen && plannedEndAt ? { plannedEndAt: plannedEndAt.length === 16 ? plannedEndAt + ":00" : plannedEndAt } : {})
       };
       const newSession = await startParkingSession(req);
       setParkingLotId("");

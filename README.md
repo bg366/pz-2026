@@ -104,10 +104,12 @@ Role nadaje administrator. Użytkownik może mieć wiele ról jednocześnie.
 
 ### Rezerwacje (tylko parkingi BARRIER)
 
-- Tworzenie rezerwacji z wyborem daty i godziny (od–do)
+- Tworzenie rezerwacji z podaniem numeru rejestracyjnego pojazdu (pre-wypełniony aktywnym pojazdem)
+- Wybór daty i godziny (od–do)
 - Statusy: `PENDING_PAYMENT`, `CONFIRMED`, `CANCELLED`, `COMPLETED`, `EXPIRED`
 - Rezerwacja aktywna dopiero po opłaceniu
 - Blokada rezerwacji gdy parking pełny lub jest typem OPEN
+- Inspektor: pojazd z aktywną rezerwacją na aktualny termin wyjeżdża bez dodatkowej opłaty
 
 ### Sesje parkingowe (wjazd bez rezerwacji)
 
@@ -183,7 +185,7 @@ Samodzielna aplikacja webowa (HTML + JS, bez frameworka) dla inspektorów i urz�
 ## Struktura katalogów
 
 ```
-backend/              Spring Boot API, migracje Flyway (V1–V22), testy
+backend/              Spring Boot API, migracje Flyway (V1–V23), testy
 admin-frontend/       Panel administratora (React + TypeScript)
 user-frontend/        Aplikacja użytkownika (React + TypeScript)
 inspector-frontend/   Panel inspektora (standalone HTML + JS)
@@ -196,7 +198,7 @@ docs/                 Przykładowe requesty HTTP
 - **Auth: JWT** — stateless; token zwracany przy logowaniu, przekazywany jako `Authorization: Bearer <token>`.
 - **Baza: PostgreSQL + PostGIS** — zapytania przestrzenne (`ST_DWithin`) do wyszukiwania w promieniu.
 - **Cache: Redis** — sesje i dane tymczasowe.
-- **Migracje: Flyway** — wersjonowane migracje SQL V1–V22.
+- **Migracje: Flyway** — wersjonowane migracje SQL V1–V23.
 - **Walidacja: Bean Validation + DB constraints** — adnotacje na DTO + `CHECK` constrainty w bazie.
 - **Płatności: Paynow** — przekierowanie na bramkę; fallback lokalny gdy brak kluczy.
 - **Reverse proxy: Nginx** — `/api/` → backend, `/admin/` → admin-frontend, `/inspektor/` → statyczny HTML.

@@ -10,6 +10,8 @@ import pl.krakow.parking.dto.NotificationResponse;
 import pl.krakow.parking.exception.ResourceNotFoundException;
 import pl.krakow.parking.model.Notification;
 import pl.krakow.parking.model.NotificationType;
+import pl.krakow.parking.model.ParkingAccessType;
+import pl.krakow.parking.model.ParkingSession;
 import pl.krakow.parking.model.Reservation;
 import pl.krakow.parking.model.ReservationStatus;
 import pl.krakow.parking.repository.NotificationRepository;
@@ -74,15 +76,13 @@ public class NotificationService {
                 reservation.getEndsAt().toLocalTime().withSecond(0).withNano(0)
             );
 
-            Notification notification = Notification.builder()
+            notificationRepository.save(Notification.builder()
                 .user(reservation.getUser())
                 .reservation(reservation)
                 .type(NotificationType.RESERVATION_EXPIRING)
                 .message(message)
                 .read(false)
-                .build();
-
-            notificationRepository.save(notification);
+                .build());
         }
     }
 
@@ -98,14 +98,60 @@ public class NotificationService {
             reservation.getStartsAt().toLocalDate(),
             reservation.getEndsAt().toLocalDate()
         );
-        Notification notification = Notification.builder()
+        notificationRepository.save(Notification.builder()
             .user(reservation.getUser())
             .reservation(reservation)
             .type(NotificationType.RESERVATION_CONFIRMED)
             .message(message)
             .read(false)
-            .build();
-        notificationRepository.save(notification);
+            .build());
+    }
+
+    @Transactional
+    public void createSessionStartedNotification(ParkingSession session) {
+        if (session.getUser() == null) return;
+        if (notificationRepository.existsBySessionIdAndType(session.getId(), NotificationType.SESSION_STARTED)) return;
+        String message = String.format(
+            "Twój pojazd %s wjechał na parking \"%s\" (godz. %s).",
+            session.getRegistrationNumber(),
+            session.getParkingLot().getName(),
+            session.getStartedAt().toLocalTime().withSecond(0).withNano(0)
+        );
+        notificationRepository.save(Notification.builder()
+            .user(session.getUser())
+            .session(session)
+            .type(NotificationType.SESSION_STARTED)
+            .message(message)
+            .read(false)
+            .build());
+    }
+
+    @Transactional
+    public void createSessionPaidNotification(ParkingSession session) {
+        if (session.getUser() == null) return;
+        if (notificationRepository.existsBySessionIdAndType(session.getId(), NotificationType.SESSION_PAID)) return;
+        String message;
+        if (session.getParkingLot().getAccessType() == ParkingAccessType.OPEN && session.getEndedAt() != null) {
+            message = String.format(
+                "Sesja parkingowa w \"%s\" (%s) opłacona. Ważna do godz. %s.",
+                session.getParkingLot().getName(),
+                session.getRegistrationNumber(),
+                session.getEndedAt().toLocalTime().withSecond(0).withNano(0)
+            );
+        } else {
+            message = String.format(
+                "Płatność za pobyt w \"%s\" (%s) potwierdzona. Możesz wyjechać.",
+                session.getParkingLot().getName(),
+                session.getRegistrationNumber()
+            );
+        }
+        notificationRepository.save(Notification.builder()
+            .user(session.getUser())
+            .session(session)
+            .type(NotificationType.SESSION_PAID)
+            .message(message)
+            .read(false)
+            .build());
     }
 
     private NotificationResponse toResponse(Notification n) {
@@ -115,6 +161,7 @@ public class NotificationService {
             n.getMessage(),
             n.isRead(),
             n.getReservation() != null ? n.getReservation().getId() : null,
+            n.getSession() != null ? n.getSession().getId() : null,
             n.getCreatedAt()
         );
     }

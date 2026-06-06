@@ -39,6 +39,7 @@ services:
       context: ./backend
     container_name: krakow-parking-backend
     environment:
+      TZ: Europe/Warsaw
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
       DB_HOST: postgres
       DB_PORT: ${DB_PORT:-5432}

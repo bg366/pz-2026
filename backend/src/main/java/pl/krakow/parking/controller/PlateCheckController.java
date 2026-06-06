@@ -25,6 +25,8 @@ import pl.krakow.parking.model.ReservationStatus;
 import pl.krakow.parking.repository.ParkingLotRepository;
 import pl.krakow.parking.repository.ParkingSessionRepository;
 import pl.krakow.parking.repository.ReservationRepository;
+import pl.krakow.parking.repository.VehicleRepository;
+import pl.krakow.parking.service.NotificationService;
 import pl.krakow.parking.service.ParkingFeeService;
 
 @RestController
@@ -35,17 +37,23 @@ public class PlateCheckController {
     private final ReservationRepository reservationRepository;
     private final ParkingLotRepository parkingLotRepository;
     private final ParkingFeeService parkingFeeService;
+    private final VehicleRepository vehicleRepository;
+    private final NotificationService notificationService;
 
     public PlateCheckController(
         ParkingSessionRepository sessionRepository,
         ReservationRepository reservationRepository,
         ParkingLotRepository parkingLotRepository,
-        ParkingFeeService parkingFeeService
+        ParkingFeeService parkingFeeService,
+        VehicleRepository vehicleRepository,
+        NotificationService notificationService
     ) {
         this.sessionRepository = sessionRepository;
         this.reservationRepository = reservationRepository;
         this.parkingLotRepository = parkingLotRepository;
         this.parkingFeeService = parkingFeeService;
+        this.vehicleRepository = vehicleRepository;
+        this.notificationService = notificationService;
     }
 
     @PostMapping("/entry")
@@ -81,6 +89,12 @@ public class PlateCheckController {
             .currency("PLN")
             .build();
         ParkingSession saved = sessionRepository.save(session);
+
+        vehicleRepository.findUserVehiclesByPlate(plate).stream().findFirst().ifPresent(vehicle -> {
+            saved.setUser(vehicle.getUser());
+            sessionRepository.save(saved);
+            notificationService.createSessionStartedNotification(saved);
+        });
 
         return ResponseEntity.ok(new CameraEntryResponse(true, "Wjazd zarejestrowany. Szlaban otwiera sie.", plate, saved.getId()));
     }
@@ -142,6 +156,25 @@ public class PlateCheckController {
     @PostMapping("/exit/{plate}/initiate")
     public ResponseEntity<ExitPaymentResponse> initiateExitPayment(@PathVariable String plate) {
         String normalizedPlate = plate.toUpperCase().replaceAll("\\s+", "");
+        LocalDateTime now = LocalDateTime.now();
+
+        boolean coveredByReservation = !reservationRepository
+            .findCurrentlyActiveByVehiclePlate(normalizedPlate, ReservationStatus.CONFIRMED, now)
+            .isEmpty();
+
+        if (coveredByReservation) {
+            sessionRepository.findFirstByRegistrationNumberIgnoreCaseAndStatusIn(
+                normalizedPlate, List.of(ParkingSessionStatus.ACTIVE)
+            ).ifPresent(s -> {
+                s.setEndedAt(now);
+                s.setAmount(BigDecimal.ZERO);
+                s.setStatus(ParkingSessionStatus.PAID);
+                sessionRepository.save(s);
+            });
+            return ResponseEntity.ok(new ExitPaymentResponse(
+                true, "Pojazd objety aktywna rezerwacja. Wyjazd bez dodatkowej oplaty.", null, BigDecimal.ZERO, "PLN"
+            ));
+        }
 
         ParkingSession session = sessionRepository
             .findFirstByRegistrationNumberIgnoreCaseAndStatusIn(normalizedPlate, List.of(ParkingSessionStatus.ACTIVE))
@@ -151,11 +184,10 @@ public class PlateCheckController {
             return ResponseEntity.ok(new ExitPaymentResponse(false, "Brak aktywnej sesji dla " + normalizedPlate, null, null, null));
         }
 
-        LocalDateTime endedAt = LocalDateTime.now();
-        long minutes = Duration.between(session.getStartedAt(), endedAt).toMinutes();
+        long minutes = Duration.between(session.getStartedAt(), now).toMinutes();
         BigDecimal amount = calculateFeeSafely(session.getParkingLot().getId(), (int) Math.max(minutes, 1));
 
-        session.setEndedAt(endedAt);
+        session.setEndedAt(now);
         session.setAmount(amount);
         session.setStatus(ParkingSessionStatus.PAYMENT_PENDING);
         session.setPaymentToken(UUID.randomUUID().toString().replace("-", ""));
@@ -174,8 +206,9 @@ public class PlateCheckController {
             return ResponseEntity.ok(new ExitPaymentResponse(false, "Nieprawidlowy token platnosci.", null, null, null));
         }
         session.setStatus(ParkingSessionStatus.PAID);
-        sessionRepository.save(session);
-        return ResponseEntity.ok(new ExitPaymentResponse(true, "Platnosc potwierdzona. Mozesz wyjechac.", null, session.getAmount(), session.getCurrency()));
+        ParkingSession saved = sessionRepository.save(session);
+        notificationService.createSessionPaidNotification(saved);
+        return ResponseEntity.ok(new ExitPaymentResponse(true, "Platnosc potwierdzona. Mozesz wyjechac.", null, saved.getAmount(), saved.getCurrency()));
     }
 
     private BigDecimal calculateFeeSafely(Long parkingLotId, int minutes) {

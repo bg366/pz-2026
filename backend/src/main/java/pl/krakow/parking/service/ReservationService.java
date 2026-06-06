@@ -82,6 +82,7 @@ public class ReservationService {
             .user(user)
             .parkingLot(parkingLot)
             .status(ReservationStatus.PENDING_PAYMENT)
+            .registrationNumber(request.registrationNumber().toUpperCase())
             .startsAt(request.startsAt())
             .endsAt(request.endsAt())
             .build();
@@ -148,6 +149,7 @@ public class ReservationService {
             r.getParkingLot().getName(),
             r.getParkingLot().getAddress(),
             r.getStatus(),
+            r.getRegistrationNumber(),
             r.getStartsAt(),
             r.getEndsAt(),
             r.getCreatedAt(),

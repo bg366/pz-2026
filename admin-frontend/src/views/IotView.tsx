@@ -331,24 +331,28 @@ export default function IotView({ token }: Props) {
           </button>
         </form>
 
-        {cameraResult ? (
-          <div style={{
-            marginTop: "16px",
-            padding: "16px",
-            borderRadius: "8px",
-            background: (cameraResult.hasPaidSession || cameraResult.hasActiveReservation) ? "#f0fdf4" : "#fff1f2",
-            border: `2px solid ${(cameraResult.hasPaidSession || cameraResult.hasActiveReservation) ? "#22c55e" : "#ef4444"}`,
-          }}>
+        {cameraResult ? (() => {
+          const hasActiveSession = cameraResult.activeSessions.some(s => s.status === "ACTIVE");
+          const hasPaid = cameraResult.hasPaidSession && !hasActiveSession;
+          const hasReservation = cameraResult.hasActiveReservation;
+          const isOk = cameraResult.hasPaidSession || hasReservation;
+          const label = hasReservation && hasPaid ? "OPŁACONY / MA REZERWACJĘ"
+            : hasReservation ? "MA REZERWACJĘ"
+            : hasPaid ? "OPŁACONY"
+            : hasActiveSession ? "AKTYWNA SESJA (szlaban — płatność przy wyjeździe)"
+            : "BRAK OPŁATY";
+          const color = isOk || hasActiveSession ? "#15803d" : "#dc2626";
+          const bg = isOk || hasActiveSession ? "#f0fdf4" : "#fff1f2";
+          const border = isOk || hasActiveSession ? "#22c55e" : "#ef4444";
+          return (
+          <div style={{ marginTop: "16px", padding: "16px", borderRadius: "8px", background: bg, border: `2px solid ${border}` }}>
             <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
-              <span style={{
-                fontSize: "2rem",
-                color: (cameraResult.hasPaidSession || cameraResult.hasActiveReservation) ? "#16a34a" : "#dc2626"
-              }}>
-                {(cameraResult.hasPaidSession || cameraResult.hasActiveReservation) ? "✓" : "✗"}
+              <span style={{ fontSize: "2rem", color }}>
+                {isOk || hasActiveSession ? "✓" : "✗"}
               </span>
               <div>
-                <div style={{ fontWeight: 800, fontSize: "1.1rem", color: (cameraResult.hasPaidSession || cameraResult.hasActiveReservation) ? "#15803d" : "#dc2626" }}>
-                  {(cameraResult.hasPaidSession || cameraResult.hasActiveReservation) ? "OPŁACONY / MA REZERWACJĘ" : "BRAK OPŁATY"}
+                <div style={{ fontWeight: 800, fontSize: "1.1rem", color }}>
+                  {label}
                 </div>
                 <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#374151" }}>
                   {cameraResult.registrationNumber}
@@ -359,7 +363,10 @@ export default function IotView({ token }: Props) {
               <div key={s.sessionId} style={{ background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", padding: "10px", marginBottom: "8px", fontSize: "0.85rem" }}>
                 <strong>Sesja:</strong> {s.parkingLotName} — {s.status}
                 <br />
-                <span style={{ color: "#6b7280" }}>Wjazd: {new Date(s.startedAt).toLocaleString("pl-PL")}</span>
+                <span style={{ color: "#6b7280" }}>
+                  Wjazd: {new Date(s.startedAt).toLocaleString("pl-PL")}
+                  {s.endedAt ? ` | Wyjazd: ${new Date(s.endedAt).toLocaleString("pl-PL")}` : ""}
+                </span>
               </div>
             ))}
             {cameraResult.activeReservations.map((r) => (
@@ -375,7 +382,8 @@ export default function IotView({ token }: Props) {
               <p style={{ color: "#6b7280", fontSize: "0.85rem" }}>Brak opłaconej sesji ani aktywnej rezerwacji dla tablicy {cameraResult.registrationNumber}.</p>
             ) : null}
           </div>
-        ) : null}
+          );
+        })() : null}
       </section>
 
       {/* Rejestracja + Symulacja */}

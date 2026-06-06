@@ -151,7 +151,7 @@ export default function ParkingSearch({ auth, activeVehicle, activeSessions, onS
       const req = {
         parkingLotId: result.id,
         registrationNumber: entryPlate.trim().toUpperCase(),
-        ...(result.accessType === "OPEN" ? { plannedEndAt: new Date(entryEndAt).toISOString().replace("Z", "") } : {})
+        ...(result.accessType === "OPEN" ? { plannedEndAt: entryEndAt.length === 16 ? entryEndAt + ":00" : entryEndAt } : {})
       };
       const session = await startParkingSession(req);
       onSessionsChange();

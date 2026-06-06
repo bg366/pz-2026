@@ -32,6 +32,7 @@ public class ParkingSessionService {
     private final ParkingFeeService parkingFeeService;
     private final PaynowClient paynowClient;
     private final PaynowProperties paynowProps;
+    private final NotificationService notificationService;
 
     public ParkingSessionService(
         ParkingSessionRepository sessionRepository,
@@ -39,7 +40,8 @@ public class ParkingSessionService {
         UserRepository userRepository,
         ParkingFeeService parkingFeeService,
         PaynowClient paynowClient,
-        PaynowProperties paynowProps
+        PaynowProperties paynowProps,
+        NotificationService notificationService
     ) {
         this.sessionRepository = sessionRepository;
         this.parkingLotRepository = parkingLotRepository;
@@ -47,6 +49,7 @@ public class ParkingSessionService {
         this.parkingFeeService = parkingFeeService;
         this.paynowClient = paynowClient;
         this.paynowProps = paynowProps;
+        this.notificationService = notificationService;
     }
 
     @Transactional(readOnly = true)
@@ -117,7 +120,9 @@ public class ParkingSessionService {
             .currency("PLN")
             .build();
 
-        return toResponse(sessionRepository.save(session));
+        ParkingSession saved = sessionRepository.save(session);
+        notificationService.createSessionStartedNotification(saved);
+        return toResponse(saved);
     }
 
     @Transactional
@@ -159,7 +164,9 @@ public class ParkingSessionService {
         }
 
         session.setStatus(ParkingSessionStatus.PAID);
-        return toResponse(sessionRepository.save(session));
+        ParkingSession saved = sessionRepository.save(session);
+        notificationService.createSessionPaidNotification(saved);
+        return toResponse(saved);
     }
 
     @Transactional

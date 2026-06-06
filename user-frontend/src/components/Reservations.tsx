@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { getReservations, createReservation, cancelReservation, initiatePayment, confirmPayment, cancelPayment, getAllActiveParkings } from "../api/client";
-import type { Reservation, AuthState, ParkingSearchResult } from "../api/types";
+import type { Reservation, AuthState, ParkingSearchResult, UserVehicle } from "../api/types";
 
 type Props = {
   auth: AuthState | null;
   initialParkingId?: number | null;
+  activeVehicle?: UserVehicle | null;
 };
 
 type PaymentStep = {
@@ -61,12 +62,13 @@ function defaultEndsAt(): string {
   return toLocalDateTimeInput(d);
 }
 
-export default function Reservations({ auth, initialParkingId }: Props) {
+export default function Reservations({ auth, initialParkingId, activeVehicle }: Props) {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [parkingOptions, setParkingOptions] = useState<ParkingSearchResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [parkingLotId, setParkingLotId] = useState("");
+  const [registrationNumber, setRegistrationNumber] = useState(activeVehicle?.registrationNumber ?? "");
   const [startsAt, setStartsAt] = useState(defaultStartsAt);
   const [endsAt, setEndsAt] = useState(defaultEndsAt);
   const [submitting, setSubmitting] = useState(false);
@@ -82,6 +84,10 @@ export default function Reservations({ auth, initialParkingId }: Props) {
   useEffect(() => {
     if (initialParkingId != null) setParkingLotId(String(initialParkingId));
   }, [initialParkingId]);
+
+  useEffect(() => {
+    if (activeVehicle?.registrationNumber) setRegistrationNumber(activeVehicle.registrationNumber);
+  }, [activeVehicle]);
 
   async function load() {
     if (!auth) return;
@@ -129,8 +135,9 @@ export default function Reservations({ auth, initialParkingId }: Props) {
     try {
       const created = await createReservation({
         parkingLotId: Number(parkingLotId),
-        startsAt: new Date(startsAt).toISOString().replace("Z", ""),
-        endsAt: new Date(endsAt).toISOString().replace("Z", "")
+        registrationNumber: registrationNumber.trim().toUpperCase(),
+        startsAt: startsAt.length === 16 ? startsAt + ":00" : startsAt,
+        endsAt: endsAt.length === 16 ? endsAt + ":00" : endsAt
       });
       setParkingLotId("");
       if (created.paymentToken) {
@@ -260,6 +267,18 @@ export default function Reservations({ auth, initialParkingId }: Props) {
           </label>
 
           <label className="field">
+            <span>Numer rejestracyjny</span>
+            <input
+              value={registrationNumber}
+              onChange={(e) => setRegistrationNumber(e.target.value.toUpperCase())}
+              placeholder="np. KR1234AB"
+              required
+              minLength={3}
+              maxLength={20}
+            />
+          </label>
+
+          <label className="field">
             <span>Poczatek</span>
             <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} required />
           </label>
@@ -294,6 +313,7 @@ export default function Reservations({ auth, initialParkingId }: Props) {
                 </div>
                 <dl className="details">
                   <div><dt>Rezerwacja</dt><dd>#{r.id}</dd></div>
+                  <div><dt>Rejestracja</dt><dd>{r.registrationNumber}</dd></div>
                   <div><dt>Poczatek</dt><dd>{formatDateTime(r.startsAt)}</dd></div>
                   <div><dt>Koniec</dt><dd>{formatDateTime(r.endsAt)}</dd></div>
                   <div><dt>Szacowana kwota</dt><dd>

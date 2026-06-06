@@ -9,5 +9,6 @@ public record NotificationResponse(
     String message,
     boolean read,
     Long reservationId,
+    Long sessionId,
     LocalDateTime createdAt
 ) {}

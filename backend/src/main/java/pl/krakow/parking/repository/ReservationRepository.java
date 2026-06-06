@@ -14,8 +14,7 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 
     List<Reservation> findByStatusAndEndsAtBetween(ReservationStatus status, LocalDateTime from, LocalDateTime to);
 
-    @Query("SELECT r FROM Reservation r WHERE r.user.id IN " +
-           "(SELECT v.user.id FROM Vehicle v WHERE UPPER(v.registrationNumber) = UPPER(:plate)) " +
+    @Query("SELECT r FROM Reservation r WHERE UPPER(r.registrationNumber) = UPPER(:plate) " +
            "AND r.status = :status AND r.startsAt <= :now AND r.endsAt >= :now")
     List<Reservation> findCurrentlyActiveByVehiclePlate(
         @Param("plate") String plate,
