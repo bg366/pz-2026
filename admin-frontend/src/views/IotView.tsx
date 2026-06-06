@@ -134,7 +134,7 @@ export default function IotView({ token }: Props) {
     try {
       const res = await fetch("/api/inspect/entry", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ parkingLotId: Number(entryParkingId), registrationNumber: plate })
       });
       const data = await res.json() as CameraEntryResult;
@@ -154,7 +154,9 @@ export default function IotView({ token }: Props) {
     setCameraChecking(true);
     setCameraResult(null);
     try {
-      const res = await fetch(`/api/inspect/${encodeURIComponent(plate)}`);
+      const res = await fetch(`/api/inspect/${encodeURIComponent(plate)}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json() as PlateCheckResult;
       setCameraResult(data);
