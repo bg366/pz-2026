@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inspektor Parkingowy</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #f1f5f9;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+    }
+    .header { text-align: center; margin-bottom: 32px; }
+    .header h1 { font-size: 1.75rem; font-weight: 700; color: #38bdf8; margin-bottom: 4px; }
+    .header p { color: #94a3b8; font-size: 0.9rem; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 24px; background: #1e293b; padding: 4px; border-radius: 10px; }
+    .tab {
+      flex: 1; padding: 10px 16px; border: none; border-radius: 8px;
+      color: #94a3b8; background: transparent; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+    }
+    .tab--active { background: #0284c7; color: #fff; }
+    .card {
+      background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+      padding: 24px; width: 100%; max-width: 480px; margin-bottom: 20px;
+    }
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-size: 0.8rem; color: #94a3b8; margin-bottom: 6px; font-weight: 600; text-transform: uppercase; }
+    .field input, .field select {
+      width: 100%; background: #0f172a; border: 1px solid #475569;
+      color: #f1f5f9; padding: 12px 16px; border-radius: 8px; font-size: 1rem; font-weight: 700;
+      text-transform: uppercase;
+    }
+    .field input:focus, .field select:focus { outline: none; border-color: #38bdf8; }
+    .btn {
+      width: 100%; color: #fff; border: none; padding: 14px; border-radius: 8px;
+      font-size: 1rem; font-weight: 700; cursor: pointer;
+    }
+    .btn--blue { background: #0284c7; }
+    .btn--blue:hover { background: #0369a1; }
+    .btn--green { background: #16a34a; }
+    .btn--green:hover { background: #15803d; }
+    .btn:disabled { background: #475569; cursor: not-allowed; }
+    .result { border-radius: 12px; padding: 20px; width: 100%; max-width: 480px; text-align: center; }
+    .result--ok { background: #064e3b; border: 2px solid #10b981; }
+    .result--warn { background: #451a03; border: 2px solid #f59e0b; }
+    .result--bad { background: #450a0a; border: 2px solid #ef4444; }
+    .result__icon { font-size: 3rem; margin-bottom: 12px; }
+    .result__title { font-size: 1.5rem; font-weight: 800; margin-bottom: 8px; }
+    .result--ok .result__title { color: #34d399; }
+    .result--warn .result__title { color: #fbbf24; }
+    .result--bad .result__title { color: #f87171; }
+    .result__plate { font-size: 1.1rem; color: #94a3b8; margin-bottom: 16px; }
+    .detail-card { background: rgba(255,255,255,0.05); border-radius: 8px; padding: 12px; margin-top: 10px; text-align: left; }
+    .detail-card dt { font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; }
+    .detail-card dd { font-size: 0.9rem; color: #f1f5f9; margin-top: 2px; }
+    .error-box { background: #450a0a; border: 1px solid #ef4444; border-radius: 8px; padding: 14px; color: #fca5a5; width: 100%; max-width: 480px; text-align: center; }
+    .reset-btn { background: transparent; border: 1px solid #475569; color: #94a3b8; padding: 10px 20px; border-radius: 8px; cursor: pointer; margin-top: 16px; font-size: 0.85rem; }
+    .reset-btn:hover { border-color: #94a3b8; color: #f1f5f9; }
+    .timestamp { font-size: 0.75rem; color: #64748b; margin-top: 12px; }
+    .amount-box { font-size: 2rem; font-weight: 800; color: #fbbf24; margin: 12px 0; }
+    #login-screen { width: 100%; max-width: 480px; }
+    .logout-bar { width: 100%; max-width: 480px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; font-size: 0.8rem; color: #64748b; }
+    .logout-bar button { background: transparent; border: 1px solid #475569; color: #94a3b8; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
+    .logout-bar button:hover { border-color: #ef4444; color: #f87171; }
+    #app-content { width: 100%; display: none; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Inspektor Parkingowy</h1>
+    <p>Panel kontrolny dla inspektorów i bramek wjazdowych/wyjazdowych</p>
+  </div>
+
+  <!-- LOGIN SCREEN -->
+  <div id="login-screen">
+    <div class="card">
+      <div class="field">
+        <label for="login-email">E-mail</label>
+        <input type="email" id="login-email" placeholder="inspector@parking.local" autocomplete="username" style="text-transform:none" />
+      </div>
+      <div class="field">
+        <label for="login-password">Haslo</label>
+        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" style="text-transform:none" />
+      </div>
+      <div id="login-error" style="color:#f87171;font-size:.85rem;margin-bottom:12px;display:none"></div>
+      <button class="btn btn--blue" id="btn-login" onclick="doLogin()">Zaloguj sie</button>
+    </div>
+    <p style="color:#475569;font-size:.75rem;text-align:center;margin-top:8px">Dostep tylko dla kont z rola Inspektor lub Administrator.</p>
+  </div>
+
+  <!-- MAIN APP (hidden until logged in) -->
+  <div id="app-content">
+    <div class="logout-bar">
+      <span id="logged-as"></span>
+      <button onclick="doLogout()">Wyloguj</button>
+    </div>
+
+    <div class="tabs" style="width:100%;max-width:480px">
+      <button class="tab tab--active" id="tab-check" onclick="showTab('check')">Sprawdz tablice</button>
+      <button class="tab" id="tab-exit" onclick="showTab('exit')">Oplata przy wyjsciu</button>
+    </div>
+
+  <!-- CHECK TAB -->
+  <div id="panel-check" style="width:100%;max-width:480px">
+    <div class="card">
+      <div class="field">
+        <label for="plate-check">Numer rejestracyjny</label>
+        <input type="text" id="plate-check" placeholder="np. KR1234AB" maxlength="20" autocomplete="off" />
+      </div>
+      <button class="btn btn--blue" id="btn-check" onclick="checkPlate()">Sprawdź tablicę</button>
+    </div>
+    <div id="result-check"></div>
+  </div>
+
+  <!-- EXIT TAB -->
+  <div id="panel-exit" style="display:none;width:100%;max-width:480px">
+    <div class="card">
+      <div class="field">
+        <label for="plate-exit">Numer rejestracyjny</label>
+        <input type="text" id="plate-exit" placeholder="np. KR1234AB" maxlength="20" autocomplete="off" />
+      </div>
+      <button class="btn btn--blue" id="btn-exit" onclick="initiateExit()">Przygotuj platnosc</button>
+    </div>
+    <div id="result-exit"></div>
+  </div>
+
+  </div> <!-- end #app-content -->
+
+  <script>
+    const API_BASE = '';
+
+    let jwtToken = sessionStorage.getItem('inspector_token') || null;
+
+    function authHeaders() {
+      return jwtToken ? { 'Authorization': 'Bearer ' + jwtToken, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+    }
+
+    async function authFetch(url, options = {}) {
+      const res = await fetch(url, { ...options, headers: { ...authHeaders(), ...(options.headers || {}) } });
+      if (res.status === 401 || res.status === 403) { doLogout(); throw new Error('Sesja wygasla. Zaloguj sie ponownie.'); }
+      return res;
+    }
+
+    async function doLogin() {
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      const errEl = document.getElementById('login-error');
+      const btn = document.getElementById('btn-login');
+      errEl.style.display = 'none';
+      btn.disabled = true; btn.textContent = 'Logowanie...';
+      try {
+        const res = await fetch(API_BASE + '/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        if (!res.ok) { const t = await res.text(); throw new Error(JSON.parse(t).message || 'Bledne dane logowania.'); }
+        const data = await res.json();
+        const roles = data.roles || [];
+        if (!roles.includes('INSPECTOR') && !roles.includes('ADMIN')) {
+          throw new Error('Konto nie posiada roli Inspektora ani Administratora.');
+        }
+        jwtToken = data.token;
+        sessionStorage.setItem('inspector_token', jwtToken);
+        document.getElementById('logged-as').textContent = 'Zalogowano: ' + data.firstName + ' ' + data.lastName + ' (' + data.email + ')';
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('app-content').style.display = 'flex';
+        document.getElementById('app-content').style.flexDirection = 'column';
+        document.getElementById('app-content').style.alignItems = 'center';
+      } catch(err) {
+        errEl.textContent = err.message || 'Blad logowania.';
+        errEl.style.display = 'block';
+      } finally {
+        btn.disabled = false; btn.textContent = 'Zaloguj sie';
+      }
+    }
+
+    function doLogout() {
+      jwtToken = null;
+      sessionStorage.removeItem('inspector_token');
+      document.getElementById('login-screen').style.display = 'block';
+      document.getElementById('app-content').style.display = 'none';
+      document.getElementById('login-email').value = '';
+      document.getElementById('login-password').value = '';
+      document.getElementById('result-check').innerHTML = '';
+      document.getElementById('result-exit').innerHTML = '';
+    }
+
+    // Auto-restore session on load
+    window.addEventListener('DOMContentLoaded', () => {
+      if (jwtToken) {
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('app-content').style.display = 'flex';
+        document.getElementById('app-content').style.flexDirection = 'column';
+        document.getElementById('app-content').style.alignItems = 'center';
+      }
+      // Uppercase only plate inputs, not login fields
+      ['plate-check', 'plate-exit'].forEach(id => {
+        const inp = document.getElementById(id);
+        if (!inp) return;
+        inp.addEventListener('input', () => { inp.value = inp.value.toUpperCase().replace(/\s+/g, ''); });
+        inp.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { if (id === 'plate-check') checkPlate(); else initiateExit(); }
+        });
+      });
+      document.getElementById('login-password').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') doLogin();
+      });
+    });
+
+    function showTab(name) {
+      ['check', 'exit'].forEach(t => {
+        document.getElementById('panel-' + t).style.display = t === name ? 'block' : 'none';
+        document.getElementById('tab-' + t).classList.toggle('tab--active', t === name);
+      });
+    }
+
+    function formatDateTime(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleString('pl-PL', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function statusLabel(s) {
+      const m = { ACTIVE: 'Aktywna sesja', PAID: 'Opłacona', PAYMENT_PENDING: 'Oczekuje na płatność', CONFIRMED: 'Potwierdzona rezerwacja' };
+      return m[s] || s;
+    }
+
+    // ═══════════════ CHECK TAB ═══════════════
+    async function checkPlate() {
+      const plate = document.getElementById('plate-check').value.trim();
+      if (!plate || plate.length < 3) { showError('result-check', 'Podaj prawidlowy numer rejestracyjny.'); return; }
+      setLoading('btn-check', true);
+      document.getElementById('result-check').innerHTML = '';
+      try {
+        const res = await authFetch(`${API_BASE}/api/inspect/${encodeURIComponent(plate)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        renderCheckResult(await res.json());
+      } catch(err) {
+        showError('result-check', 'Błąd sprawdzania: ' + (err.message || ''));
+      } finally {
+        setLoading('btn-check', false);
+      }
+    }
+
+    function renderCheckResult(data) {
+      const hasExpired = data.activeSessions.some(s => s.expired);
+      const ok = data.hasPaidSession || data.hasActiveReservation;
+      const partial = !ok && (data.activeSessions.length > 0 || data.activeReservations.length > 0);
+      let cls = ok ? 'result--ok' : (partial || hasExpired) ? 'result--warn' : 'result--bad';
+      let icon = ok ? '✓' : (partial || hasExpired) ? '⚠' : '✗';
+      let title = ok ? 'OPŁACONY' : hasExpired ? 'CZAS MINĄŁ' : partial ? 'OCZEKUJE NA PŁATNOŚĆ' : 'BRAK OPŁATY';
+
+      let inner = `<div class="result__icon">${icon}</div><div class="result__title">${title}</div><div class="result__plate">${data.registrationNumber}</div>`;
+      for (const s of data.activeSessions) {
+        const expiredNote = s.expired ? ' <span style="color:#f87171">(CZAS MINĄŁ)</span>' : '';
+        inner += `<div class="detail-card"><dl><dt>Parking</dt><dd>${s.parkingLotName}</dd><dt>Status</dt><dd>${statusLabel(s.status)}${expiredNote}</dd><dt>Wjazd</dt><dd>${formatDateTime(s.startedAt)}</dd>${s.endedAt ? `<dt>Ważna do</dt><dd>${formatDateTime(s.endedAt)}${expiredNote}</dd>` : ''}</dl></div>`;
+      }
+      for (const r of data.activeReservations) {
+        inner += `<div class="detail-card"><dl><dt>Parking</dt><dd>${r.parkingLotName}</dd><dt>Status</dt><dd>${statusLabel(r.status)}</dd><dt>Ważna do</dt><dd>${formatDateTime(r.endsAt)}</dd></dl></div>`;
+      }
+      if (!ok && !partial && !hasExpired) inner += `<p style="color:#94a3b8;font-size:.85rem;margin-top:8px">Brak opłaconego pobytu ani rezerwacji.</p>`;
+      inner += `<div class="timestamp">Sprawdzono: ${new Date().toLocaleString('pl-PL')}</div>`;
+      inner += `<button class="reset-btn" onclick="document.getElementById('result-check').innerHTML='';document.getElementById('plate-check').value=''">Sprawdź inny</button>`;
+      document.getElementById('result-check').innerHTML = `<div class="result ${cls}">${inner}</div>`;
+    }
+
+    // ═══════════════ EXIT TAB ═══════════════
+    let currentExitToken = null;
+
+    async function initiateExit() {
+      const plate = document.getElementById('plate-exit').value.trim();
+      if (!plate || plate.length < 3) { showError('result-exit', 'Podaj prawidłowy numer rejestracyjny.'); return; }
+      setLoading('btn-exit', true);
+      document.getElementById('result-exit').innerHTML = '';
+      currentExitToken = null;
+      try {
+        const res = await authFetch(`${API_BASE}/api/inspect/exit/${encodeURIComponent(plate)}/initiate`, { method: 'POST' });
+        const data = await res.json();
+        if (!data.success) {
+          showError('result-exit', data.message || 'Brak aktywnej sesji dla tego pojazdu.');
+          return;
+        }
+        if (!data.paymentToken) {
+          // Covered by reservation — free exit
+          document.getElementById('result-exit').innerHTML = `
+            <div class="result result--ok">
+              <div class="result__icon">✓</div>
+              <div class="result__title">WYJAZD WOLNY</div>
+              <div class="result__plate">${plate}</div>
+              <p style="color:#34d399;margin:8px 0">${data.message}</p>
+              <div class="timestamp">Zarejestrowano: ${new Date().toLocaleString('pl-PL')}</div>
+              <button class="reset-btn" onclick="resetExit()">Nowy pojazd</button>
+            </div>`;
+          return;
+        }
+        currentExitToken = data.paymentToken;
+        renderExitPayment(plate, data);
+      } catch(err) {
+        showError('result-exit', 'Błąd: ' + (err.message || ''));
+      } finally {
+        setLoading('btn-exit', false);
+      }
+    }
+
+    function renderExitPayment(plate, data) {
+      document.getElementById('result-exit').innerHTML = `
+        <div class="result result--warn">
+          <div class="result__icon">💳</div>
+          <div class="result__title">DO ZAPŁATY</div>
+          <div class="result__plate">${plate}</div>
+          <div class="amount-box">${data.amount != null ? Number(data.amount).toFixed(2) + ' ' + (data.currency || 'PLN') : '0,00 PLN'}</div>
+          <button class="btn btn--green" style="margin-top:12px" onclick="confirmExit()">Potwierdź opłatę i otwórz szlaban</button>
+          <button class="reset-btn" onclick="resetExit()">Anuluj</button>
+        </div>`;
+    }
+
+    async function confirmExit() {
+      if (!currentExitToken) return;
+      try {
+        const res = await authFetch(`${API_BASE}/api/inspect/exit/confirm/${currentExitToken}`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          document.getElementById('result-exit').innerHTML = `
+            <div class="result result--ok">
+              <div class="result__icon">✓</div>
+              <div class="result__title">OPŁACONO</div>
+              <p style="color:#34d399;margin:8px 0">Szlaban otwiera się. Dziękujemy za skorzystanie z parkingu.</p>
+              <div class="timestamp">Zapłacono: ${new Date().toLocaleString('pl-PL')}</div>
+              <button class="reset-btn" onclick="resetExit()">Nowa płatność</button>
+            </div>`;
+          currentExitToken = null;
+        } else {
+          showError('result-exit', data.message || 'Błąd potwierdzenia płatności.');
+        }
+      } catch(err) {
+        showError('result-exit', 'Błąd: ' + (err.message || ''));
+      }
+    }
+
+    function resetExit() {
+      document.getElementById('result-exit').innerHTML = '';
+      document.getElementById('plate-exit').value = '';
+      currentExitToken = null;
+    }
+
+    // ═══════════════ Utilities ═══════════════
+    function showError(containerId, msg) {
+      document.getElementById(containerId).innerHTML =
+        `<div class="error-box">${msg}<br><button class="reset-btn" style="margin-top:12px" onclick="document.getElementById('${containerId}').innerHTML=''">OK</button></div>`;
+    }
+
+    function setLoading(btnId, loading) {
+      const btn = document.getElementById(btnId);
+      btn.disabled = loading;
+      btn.textContent = loading ? 'Przetwarzanie...' : (btnId === 'btn-check' ? 'Sprawdź tablicę' : 'Przygotuj płatność');
+    }
+  </script>
+</body>
+</html>

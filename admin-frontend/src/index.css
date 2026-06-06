@@ -1,0 +1,50 @@
+* { box-sizing: border-box; }
+body { margin: 0; }
+button, input, select, textarea { font: inherit; }
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Responsive form rows — 2 columns on desktop, 1 on mobile */
+.admin-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+/* Summary cards — 3 columns on desktop, 2 on tablet, 1 on mobile */
+.admin-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .admin-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-form-row {
+    grid-template-columns: 1fr;
+  }
+  .admin-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .admin-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Page padding on mobile */
+@media (max-width: 640px) {
+  .admin-page-inner {
+    padding: 16px 12px !important;
+  }
+}

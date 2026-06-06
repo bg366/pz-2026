@@ -9,28 +9,25 @@ import pl.krakow.parking.dto.ParkingLotResponse;
 import pl.krakow.parking.dto.ParkingLotUpdateRequest;
 import pl.krakow.parking.model.ParkingLot;
 
-@Mapper(componentModel = "spring", uses = {TariffMapper.class, ParkingSpotMapper.class})
+@Mapper(componentModel = "spring")
 public interface ParkingLotMapper {
-
-    @Mapping(target = "latitude", expression = "java(parkingLot.getLocation() != null ? parkingLot.getLocation().getY() : null)")
-    @Mapping(target = "longitude", expression = "java(parkingLot.getLocation() != null ? parkingLot.getLocation().getX() : null)")
-    ParkingLotResponse toResponse(ParkingLot parkingLot);
-
-    List<ParkingLotResponse> toResponses(List<ParkingLot> parkingLots);
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "location", ignore = true)
     @Mapping(target = "occupiedSpots", constant = "0")
+    @Mapping(target = "occupiedSctSpots", constant = "0")
+    @Mapping(target = "accessType", ignore = true)
     @Mapping(target = "spots", ignore = true)
-    @Mapping(target = "tariffs", ignore = true)
+    @Mapping(target = "owner", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     ParkingLot toEntity(ParkingLotCreateRequest request);
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "location", ignore = true)
+    @Mapping(target = "accessType", ignore = true)
     @Mapping(target = "spots", ignore = true)
-    @Mapping(target = "tariffs", ignore = true)
+    @Mapping(target = "owner", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     void updateParkingLot(ParkingLotUpdateRequest request, @MappingTarget ParkingLot parkingLot);

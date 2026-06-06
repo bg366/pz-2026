@@ -1,0 +1,3 @@
+ALTER TABLE notifications DROP CONSTRAINT IF EXISTS chk_notifications_type;
+ALTER TABLE notifications ADD CONSTRAINT chk_notifications_type
+    CHECK (type IN ('RESERVATION_EXPIRING', 'RESERVATION_EXPIRED', 'RESERVATION_CONFIRMED'));

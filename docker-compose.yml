@@ -39,6 +39,7 @@ services:
       context: ./backend
     container_name: krakow-parking-backend
     environment:
+      TZ: Europe/Warsaw
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
       DB_HOST: postgres
       DB_PORT: ${DB_PORT:-5432}
@@ -47,6 +48,9 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-parking_pass}
       REDIS_HOST: redis
       REDIS_PORT: ${REDIS_PORT:-6379}
+      PAYNOW_API_KEY: ${PAYNOW_API_KEY:-}
+      PAYNOW_SIGNATURE_KEY: ${PAYNOW_SIGNATURE_KEY:-}
+      PAYNOW_CONTINUE_URL: ${PAYNOW_CONTINUE_URL:-http://localhost/rezerwacje}
     ports:
       - "8080:8080"
     depends_on:
@@ -86,6 +90,7 @@ services:
       - "80:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./inspector-frontend:/static/inspector:ro
     depends_on:
       - backend
       - admin-frontend
