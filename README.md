@@ -1,6 +1,6 @@
 # Krakow Parking System
 
-System zarządzania miejscami parkingowymi dla Krakowa. Obejmuje REST API Spring Boot, panel administratora React, aplikację użytkownika React, aplikację inspektora, PostGIS, Redis i reverse proxy Nginx.
+System zarządzania miejscami parkingowymi dla Krakowa. REST API Spring Boot, panel administratora React, aplikacja użytkownika React, aplikacja inspektora, PostGIS, Redis, Nginx.
 
 ## Wymagania
 
@@ -10,46 +10,51 @@ System zarządzania miejscami parkingowymi dla Krakowa. Obejmuje REST API Spring
 
 ```bash
 cp .env.example .env
-docker-compose up --build
+# Opcjonalnie: wypełnij klucze Paynow w .env
+docker compose up --build
 ```
 
 ## URL-e po uruchomieniu
 
 | Serwis | URL |
 |---|---|
-| Aplikacja użytkownika | http://localhost:80 |
-| Panel admina | http://localhost:80/admin |
-| Panel inspektora | http://localhost:80/inspektor/ |
-| Swagger UI | http://localhost:80/swagger-ui.html |
-| Backend API | http://localhost:8080 |
-| User frontend (dev) | http://localhost:3000 |
-| Admin frontend (dev) | http://localhost:3001 |
+| Aplikacja użytkownika | http://localhost |
+| Panel administratora | http://localhost/admin |
+| Panel inspektora | http://localhost/inspektor/ |
+| Swagger UI | http://localhost/swagger-ui.html |
 
-## Konta testowe
+## Konta testowe (seed)
 
 | Rola | Email | Hasło |
 |---|---|---|
 | Administrator | admin@krakow-parking.local | Admin123! |
 | Użytkownik | user@krakow-parking.local | User12345! |
 | Właściciel parkingu | owner@krakow-parking.local | Owner123! |
-
-## Role użytkowników
-
-- **ADMIN** — pełny dostęp do panelu administracyjnego: zarządzanie parkingami, cenniki, reguły SCT, użytkownicy, raporty, panel IoT.
-- **PARKING_OWNER** — dostęp do `/api/owner/parking-lots`: edycja przypisanych parkingów, aktualizacja obłożenia i konfiguracji miejsc. Rolę nadaje wyłącznie administrator.
-- **USER** — dostęp do własnego profilu, pojazdów, rezerwacji, sesji parkingowych i publicznych endpointów wyszukiwania.
+| Inspektor | inspector@parking.local | Inspector123! |
 
 ---
 
-## Funkcje
+## Role użytkowników
+
+| Rola | Opis |
+|---|---|
+| `ADMIN` | Pełny dostęp do panelu administracyjnego: parkingi, cenniki, SCT, użytkownicy, IoT |
+| `PARKING_OWNER` | Zarządzanie własnymi parkingami: obłożenie, miejsca, cennik, dodawanie nowych |
+| `USER` | Profil, pojazdy, rezerwacje, sesje parkingowe, wyszukiwarka |
+| `INSPECTOR` | Dostęp do panelu inspektora: weryfikacja tablic, obsługa wyjazdu |
+
+Role nadaje administrator. Użytkownik może mieć wiele ról jednocześnie.
+
+---
+
+## Funkcjonalności
 
 ### Uwierzytelnianie i autoryzacja
 
 - Rejestracja z walidacją formatu e-mail i siły hasła
-- Logowanie (HTTP Basic Auth, token Base64 w nagłówku `Authorization`)
+- Logowanie — JWT (Bearer token w nagłówku `Authorization`)
 - Hashowanie haseł BCrypt
-- Zmiana hasła z walidacją (stare hasło + potwierdzenie nowego)
-- Role: ADMIN, PARKING_OWNER, USER — użytkownik może mieć wiele ról jednocześnie
+- Zmiana hasła z walidacją (stare hasło + potwierdzenie)
 - Blokowanie i usuwanie kont przez administratora
 
 ### Zarządzanie parkingami
@@ -57,12 +62,12 @@ docker-compose up --build
 - CRUD parkingów przez administratora i właściciela
 - Statusy: `ACTIVE`, `INACTIVE`, `TEMPORARILY_CLOSED`, `PENDING_APPROVAL`
 - Nowe parkingi tworzone przez właścicieli wymagają zatwierdzenia przez admina
-- **Typ dostępu:**
-  - `BARRIER` — parking z szlabanem; obsługuje rezerwacje i wjazd bez rezerwacji (kamera)
-  - `OPEN` — parking otwarty bez szlabanu; płatność po wjeździe, bez rezerwacji
+- **Typ dostępu** (ustawiany przy tworzeniu przez właściciela lub admina):
+  - `BARRIER` — parking z szlabanem; obsługuje rezerwacje i wjazd bez rezerwacji
+  - `OPEN` — parking otwarty bez szlabanu; płatność z góry przed wjazdem
 - Strefy cenowe: `ZONE_A`, `ZONE_B`, `ZONE_C`
 - Typy parkingu: `PUBLIC`, `PRIVATE`, `UNDERGROUND`, `PARK_AND_RIDE`
-- Konfiguracja kategorii miejsc: `REGULAR`, `EV`, `DISABLED`, `SCT_READY`
+- Kategorie miejsc: `REGULAR`, `EV`, `DISABLED`, `SCT_READY`
 - Przypisanie właściciela przez administratora
 
 ### Cenniki
@@ -70,155 +75,164 @@ docker-compose up --build
 - Cennik strefowy (ZONE_A / B / C)
 - Indywidualny cennik parkingu (nadpisuje strefowy)
 - Stawki: 1. godzina, 2. godzina, 3. godzina, kolejne godziny, cena dobowa
-- Kalkulacja kosztu z rozbiciem i automatycznym wyborem tańszego trybu (godzinowy vs dobowy)
-- Czas pobytu zawsze zaokrąglany w górę do pełnych godzin
+- Kalkulacja automatycznie wybiera tańszy tryb (godzinowy vs dobowy)
+- Czas pobytu zaokrąglany w górę do pełnych godzin (`ceil`)
 
 ### Strefa Czystego Transportu (SCT)
 
-- Reguły wjazdu według rodzaju paliwa i normy emisji spalin
+- Reguły wjazdu według rodzaju paliwa i normy emisji spalin (Euro 1–6)
 - Wynik weryfikacji: `ALL_SPOTS`, `SCT_SPOTS_ONLY`, `NOT_ALLOWED`
-- Weryfikacja pojazdu przed wyświetleniem dostępności w wyszukiwarce
+- Weryfikacja pojazdu automatycznie przy wyszukiwaniu (aktywny pojazd użytkownika)
 
 ### Profil użytkownika
 
-- Edycja danych konta (imię, nazwisko, numer telefonu)
+- Edycja danych (imię, nazwisko)
 - Zarządzanie wieloma pojazdami (dodawanie, edycja, usuwanie)
-- Wybór aktywnego pojazdu — automatycznie uwzględniany przy wyszukiwaniu
+- Wybór aktywnego pojazdu — filtr SCT i wypełnienie tablicy ustawiany automatycznie
 
-### Wyszukiwanie parkingów
+### Wyszukiwarka parkingów
 
-- Filtrowanie po lokalizacji GPS (promień w km), nazwie, strefie, dostępności, godzinach otwarcia
+- Filtrowanie: lokalizacja GPS + promień (km), nazwa, strefa, dostępność, godziny otwarcia
+- Filtr SCT według paliwa i normy emisji aktywnego pojazdu
 - Sortowanie: odległość, cena, liczba wolnych miejsc
-- Przewidywany koszt postoju przy zadanym czasie parkowania
+- Przewidywany koszt przy zadanym czasie postoju
 - Wyświetlanie typu dostępu (szlaban / otwarty)
-- Uwzględnienie przepustek SCT użytkownika
+- **Akcje inline na kartach parkingów:**
+  - BARRIER: przycisk „Wjedź teraz" — formularz tablicy → rejestracja wjazdu bez rezerwacji
+  - OPEN: przycisk „Rozpocznij pobyt" — tablica + godzina wyjazdu → wyliczenie kwoty → płatność
+  - Baner „Twój pojazd jest na tym parkingu" gdy użytkownik ma aktywną sesję na danym parkingu
 
 ### Rezerwacje (tylko parkingi BARRIER)
 
 - Tworzenie rezerwacji z wyborem daty i godziny (od–do)
-- Rezerwacja parkingu OPEN jest zablokowana (brak szlabanu — nie ma potrzeby)
-- Statusy rezerwacji: `PENDING_PAYMENT`, `CONFIRMED`, `CANCELLED`, `COMPLETED`, `EXPIRED`
-- Rezerwacja aktywowana dopiero po opłaceniu
-- Blokada wjazdu gdy parking pełny
+- Statusy: `PENDING_PAYMENT`, `CONFIRMED`, `CANCELLED`, `COMPLETED`, `EXPIRED`
+- Rezerwacja aktywna dopiero po opłaceniu
+- Blokada rezerwacji gdy parking pełny lub jest typem OPEN
 
 ### Sesje parkingowe (wjazd bez rezerwacji)
 
 #### Parking z szlabanem (BARRIER)
 
-1. Kamera wjazdowa rejestruje tablicę i czas wjazdu → sesja `ACTIVE`
-2. Przy wyjeździe kamera/inspektor inicjuje płatność → kwota liczona od czasu wjazdu (ceil do pełnych godzin) → `PAYMENT_PENDING`
-3. Kierowca płaci kartą → sesja `PAID` → szlaban otwiera się
+1. Kamera wjazdowa (panel IoT) lub użytkownik ręcznie rejestruje tablicę → sesja `ACTIVE`
+2. Przy wyjeździe inspektor lub kamera wyjazdowa inicjuje płatność → kwota od czasu wjazdu (ceil do pełnych godzin) → `PAYMENT_PENDING`
+3. Kierowca płaci przez Paynow → sesja `PAID` → szlaban otwiera się
 
 #### Parking otwarty (OPEN)
 
-1. Kierowca wpisuje tablicę i **planowaną godzinę wyjazdu** (godz. od ustawiana automatycznie)
-2. System oblicza koszt z góry: `ceil((godz_do − godz_od) / 60 min)` pełnych godzin × stawka
-3. Kierowca płaci od razu → sesja `PAID` z terminem ważności
-4. Inspektor sprawdza tablicę → widzi czy sesja PAID jest wciąż ważna (godz_do ≥ teraz)
+1. Użytkownik wpisuje tablicę i **planowaną godzinę wyjazdu** (godzina od = teraz)
+2. System oblicza koszt z góry: `ceil(minuty / 60)` pełnych godzin × stawka
+3. Użytkownik płaci przez Paynow z góry → sesja `PAID` z terminem ważności
+4. Inspektor sprawdza tablicę → widzi czy sesja PAID jest ważna (`godz_do ≥ teraz`)
 
-Statusy sesji: `ACTIVE`, `PAYMENT_PENDING`, `PAID`, `CANCELLED`
+Statusy sesji: `ACTIVE` → `PAYMENT_PENDING` → `PAID` / `CANCELLED`
 
-### Płatności
+### Płatności (Paynow)
 
-- Symulacja płatności kartą (środowisko testowe, karta `4242 4242 4242 4242`)
-- Opcjonalna integracja z bramką **Paynow** (sandbox):
-  - Wymagane zmienne środowiskowe: `PAYNOW_API_KEY`, `PAYNOW_SIGNATURE_KEY`
-  - Podpisywanie żądań HMAC-SHA256
-  - Gdy klucze nie są skonfigurowane — fallback do lokalnej symulacji
+- Integracja z bramką **Paynow** (sandbox) dla rezerwacji i sesji parkingowych
+- Podpisywanie żądań HMAC-SHA256 (Base64)
+- Przepływ: kliknięcie „Zapłać przez Paynow" → przekierowanie na bramkę → powrót do aplikacji z tokenem w URL → automatyczne potwierdzenie
+- URL powrotu:
+  - Rezerwacje: `PAYNOW_CONTINUE_URL?paynow=TOKEN` → zakładka Rezerwacje
+  - Sesje: `PAYNOW_CONTINUE_URL` (ścieżka `/sesje`)`?session_paynow=TOKEN` → zakładka Sesje
+- Gdy klucze nie są skonfigurowane — lokalne potwierdzenie bez przekierowania (fallback)
 
 ### Panel inspektora (`/inspektor/`)
 
-Samodzielna aplikacja webowa (bez frameworka, czysty HTML+JS) przeznaczona dla inspektorów i urządzeń bramkowych:
+Samodzielna aplikacja webowa (HTML + JS, bez frameworka) dla inspektorów i urządzeń bramkowych.
 
-- **Zakładka „Sprawdź tablicę"** — wprowadź numer rejestracyjny → wynik:
+**Wymaga logowania** — konto z rolą `INSPECTOR` lub `ADMIN`.
+
+- **Zakładka „Sprawdź tablicę"** — numer rejestracyjny → wynik:
   - ✓ OPŁACONY — aktywna płatna sesja lub potwierdzona rezerwacja
-  - ⚠ CZAS MINĄŁ — sesja OPEN z przekroczonym terminem ważności
+  - ⚠ CZAS MINĄŁ — sesja OPEN po terminie ważności
   - ⚠ OCZEKUJE NA PŁATNOŚĆ — sesja zainicjowana, niezapłacona
-  - ✗ BRAK OPŁATY — brak jakiejkolwiek aktywnej sesji/rezerwacji
+  - ✗ BRAK OPŁATY — brak aktywnej sesji ani rezerwacji
 - **Zakładka „Opłata przy wyjściu"** — dla parkingów BARRIER:
-  - Podaj tablicę → system oblicza kwotę → formularz karty → szlaban otwiera się
+  - Podaj tablicę → system oblicza kwotę od czasu wjazdu → przycisk „Zapłać przez Paynow"
 
 ### Powiadomienia w aplikacji
 
-- Powiadomienia o kończącej się rezerwacji (15 minut przed końcem)
+- Powiadomienie o zbliżającym się końcu rezerwacji (15 min przed końcem)
 - Powiadomienie o wygaśnięciu rezerwacji
 - Powiadomienie o potwierdzeniu rezerwacji po opłaceniu
-- Wyświetlane w aplikacji użytkownika z licznikiem nieprzeczytanych
+- Licznik nieprzeczytanych w pasku nawigacji
 
-### Panel administratora
+### Panel administratora (`/admin`)
 
-- Zarządzanie wszystkimi parkingami (CRUD, zatwierdzanie wniosków)
+- Zarządzanie parkingami: CRUD, zatwierdzanie wniosków właścicieli, przypisywanie właściciela
 - Zarządzanie cenami strefowymi i indywidualnymi
-- Zarządzanie użytkownikami i rolami
+- Zarządzanie użytkownikami: przeglądanie, zmiana ról (checkbox per rola), blokowanie, reset hasła
 - Zarządzanie regułami SCT
-- Raporty obłożenia parkingów (bieżące i historyczne)
-- **Panel IoT** — symulacja kamer:
-  - Kamera wjazdowa: wybór parkingu + tablica → rejestracja wjazdu
-  - Kamera wyjazdowa/kontrolna: sprawdzenie tablicy (status opłaty)
+- Raporty obłożenia (bieżące i historyczne)
+- **Panel IoT** — symulacja kamer parkingowych:
+  - Kamera wjazdowa: rejestracja wjazdu pojazdu (wybór parkingu + tablica)
+  - Kamera wyjazdowa: sprawdzenie tablicy i status opłaty
 
-### Panel właściciela parkingu (w aplikacji użytkownika)
+### Panel właściciela parkingu (zakładka w aplikacji użytkownika)
 
-- Podgląd przypisanych parkingów
+- Podgląd przypisanych parkingów z filtrowaniem i sortowaniem
 - Aktualizacja obłożenia miejsc
-- Zarządzanie kategoriami miejsc i cennikiem
-- Dodawanie nowych parkingów (wymagają zatwierdzenia przez admina)
+- Konfiguracja kategorii miejsc (REGULAR, EV, DISABLED, SCT_READY)
+- Ustawianie cennika (stawki godzinowe i dobowa)
+- Dodawanie nowych parkingów:
+  - Wybór strefy, typu, **typu dostępu (BARRIER / OPEN)**, lokalizacja na mapie
+  - Nowy parking trafia do statusu `PENDING_APPROVAL` — wymaga zatwierdzenia przez admina
 
 ---
 
 ## Struktura katalogów
 
 ```
-backend/              Spring Boot API, migracje Flyway (V1–V20), testy
-admin-frontend/       Panel administratora React + TypeScript
-user-frontend/        Aplikacja użytkownika React + TypeScript
-inspector-frontend/   Panel inspektora (standalone HTML)
+backend/              Spring Boot API, migracje Flyway (V1–V22), testy
+admin-frontend/       Panel administratora (React + TypeScript)
+user-frontend/        Aplikacja użytkownika (React + TypeScript)
+inspector-frontend/   Panel inspektora (standalone HTML + JS)
 nginx/                Konfiguracja reverse proxy
 docs/                 Przykładowe requesty HTTP
 ```
 
-## Decyzje architektoniczne
+## Architektura
 
-- **Auth: HTTP Basic + token Base64** — stateless uwierzytelnianie; token to `Base64(email:password)` w nagłówku `Authorization: Basic <token>`.
-- **Baza: PostgreSQL + PostGIS** — zapytania przestrzenne (`ST_DWithin`) do wyszukiwania parkingów w zadanym promieniu.
-- **Migracje: Flyway** — wersjonowane migracje SQL V1–V20.
-- **Walidacja: Bean Validation + DB constraints** — adnotacje na DTO + constrainty `CHECK` w bazie danych.
-- **Płatności: opcjonalny Paynow** — gdy klucze API nie są ustawione, system automatycznie używa lokalnej symulacji karty.
+- **Auth: JWT** — stateless; token zwracany przy logowaniu, przekazywany jako `Authorization: Bearer <token>`.
+- **Baza: PostgreSQL + PostGIS** — zapytania przestrzenne (`ST_DWithin`) do wyszukiwania w promieniu.
+- **Cache: Redis** — sesje i dane tymczasowe.
+- **Migracje: Flyway** — wersjonowane migracje SQL V1–V22.
+- **Walidacja: Bean Validation + DB constraints** — adnotacje na DTO + `CHECK` constrainty w bazie.
+- **Płatności: Paynow** — przekierowanie na bramkę; fallback lokalny gdy brak kluczy.
+- **Reverse proxy: Nginx** — `/api/` → backend, `/admin/` → admin-frontend, `/inspektor/` → statyczny HTML.
 
-## Komendy deweloperskie
-
-```bash
-# Backend — build i testy
-cd backend
-./gradlew build
-./gradlew test
-
-# User frontend
-cd user-frontend
-npm install
-npm run dev
-
-# Admin frontend
-cd admin-frontend
-npm install
-npm run dev
-```
-
-## Seed data
-
-Backend przy pierwszym uruchomieniu zasila bazę:
-
-- **Konta:** ADMIN, USER, PARKING_OWNER (owner@krakow-parking.local / Owner123!)
-- **Parkingi:**
-  - BARRIER: Bonarka City Center, Galeria Kazimierz, Rynek Główny (prywatne/podziemne)
-  - OPEN: Galeria Krakowska, P+R Czerwone Maki, P+R Bieżanów, Wawel, ICE Kraków (publiczne/park&ride)
-- **Cenniki** dla stref A, B, C i indywidualny dla wybranych parkingów
-- **Pojazdy testowe** przypisane do konta użytkownika
-- **Reguły SCT** dla stref A, B i C
-
-## Zmienne środowiskowe (opcjonalne)
+## Zmienne środowiskowe
 
 | Zmienna | Opis | Domyślnie |
 |---|---|---|
 | `PAYNOW_API_KEY` | Klucz API bramki Paynow (sandbox) | — (wyłączone) |
 | `PAYNOW_SIGNATURE_KEY` | Klucz podpisu HMAC Paynow | — (wyłączone) |
-| `PAYNOW_CONTINUE_URL` | URL powrotu po płatności | `http://localhost:3000/rezerwacje` |
+| `PAYNOW_CONTINUE_URL` | Bazowy URL powrotu po płatności | `http://localhost/rezerwacje` |
+| `DB_NAME` | Nazwa bazy danych | `krakow_parking` |
+| `DB_USER` | Użytkownik bazy | `parking_user` |
+| `DB_PASSWORD` | Hasło bazy | `parking_pass` |
+
+## Komendy deweloperskie
+
+```bash
+# Backend
+cd backend && ./gradlew build
+cd backend && ./gradlew test
+
+# User frontend
+cd user-frontend && npm install && npm run dev
+
+# Admin frontend
+cd admin-frontend && npm install && npm run dev
+```
+
+## Seed data
+
+Przy pierwszym uruchomieniu backend zasila bazę:
+
+- **Konta:** ADMIN, USER, PARKING_OWNER, INSPECTOR
+- **Parkingi BARRIER:** Bonarka City Center, Galeria Kazimierz, Rynek Główny
+- **Parkingi OPEN:** Galeria Krakowska, P+R Czerwone Maki, P+R Bieżanów, Wawel, ICE Kraków
+- **Cenniki** dla stref A, B, C i indywidualne dla wybranych parkingów
+- **Pojazdy testowe** przypisane do konta użytkownika
+- **Reguły SCT** dla stref A, B i C
