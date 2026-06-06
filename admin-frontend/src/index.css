@@ -1,3 +1,95 @@
+/* ============================================================
+   Kraków Parking — Admin Panel (Admin surface)
+   Design tokens: terracotta/rust on warm cream paper
+   ============================================================ */
+
+:root {
+  /* ---- Paper neutrals ---- */
+  --paper-50:  #fffefc;
+  --paper-100: #fff8ef;
+  --paper-200: #f7f5ef;
+  --paper-300: #efeae0;
+
+  /* ---- Ink / slate ---- */
+  --ink-900: #0f172a;
+  --ink-800: #1f2937;
+  --ink-700: #334155;
+  --ink-600: #475569;
+  --ink-500: #64748b;
+  --ink-400: #94a3b8;
+  --ink-300: #cbd5e1;
+  --ink-200: #e5e7eb;
+  --ink-100: #f1f5f9;
+
+  /* ---- Terracotta / rust (admin brand) ---- */
+  --rust-900: #7c2d12;
+  --rust-800: #9a3412;
+  --rust-700: #b45309;
+  --rust-100: #ffedd5;
+  --rust-50:  #fff7ed;
+  --clay-700: #7c5c46;
+  --clay-border: rgba(162, 123, 92, 0.18);
+
+  /* ---- Status ---- */
+  --success-700: #166534;
+  --success-600: #15803d;
+  --success-100: #dcfce7;
+  --success-50:  #f0fdf4;
+  --danger-700:  #b91c1c;
+  --danger-600:  #be123c;
+  --danger-100:  #fee2e2;
+  --danger-50:   #fff1f2;
+  --warning-700: #b45309;
+  --warning-500: #f59e0b;
+  --warning-100: #fef3c7;
+
+  /* ---- Admin semantic aliases ---- */
+  --brand:          var(--rust-800);
+  --brand-strong:   var(--rust-900);
+  --brand-soft:     var(--rust-50);
+  --surface-page:   var(--paper-100);
+  --surface-card:   #ffffff;
+  --text-strong:    var(--ink-800);
+  --text-body:      #5b6475;
+  --text-muted:     var(--ink-500);
+  --text-eyebrow:   var(--rust-800);
+  --border-subtle:  var(--clay-border);
+  --border-field:   rgba(124, 45, 18, 0.18);
+  --focus-ring:     var(--rust-800);
+
+  /* ---- Typography ---- */
+  --font-sans:   "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  --font-mono:   "JetBrains Mono", ui-monospace, "SFMono-Regular", "Consolas", monospace;
+  --text-h2:     22px;
+  --text-h3:     18px;
+  --text-base:   15px;
+  --text-sm:     14px;
+  --text-xs:     13px;
+  --text-2xs:    12px;
+
+  /* ---- Spacing ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+
+  /* ---- Radii ---- */
+  --radius-pill:       999px;
+  --radius-card-admin: 20px;
+  --radius-lg:         16px;
+  --radius-md:         12px;
+  --radius-sm:         10px;
+  --radius-xs:         8px;
+
+  /* ---- Shadows ---- */
+  --shadow-admin: 0 18px 40px rgba(98, 68, 40, 0.08);
+  --shadow-pop:   0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
 * { box-sizing: border-box; }
 body { margin: 0; }
 button, input, select, textarea { font: inherit; }
@@ -11,14 +103,14 @@ button, input, select, textarea { font: inherit; }
 .admin-form-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 /* Summary cards — 3 columns on desktop, 2 on tablet, 1 on mobile */
 .admin-summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 @media (max-width: 900px) {
