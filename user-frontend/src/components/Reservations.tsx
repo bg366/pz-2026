@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { getReservations, createReservation, cancelReservation, initiatePayment, confirmPayment, cancelPayment, getAllActiveParkings } from "../api/client";
 import type { Reservation, AuthState, ParkingSearchResult, UserVehicle } from "../api/types";
@@ -74,6 +74,9 @@ export default function Reservations({ auth, initialParkingId, activeVehicle }: 
   const [submitting, setSubmitting] = useState(false);
   const [paymentStep, setPaymentStep] = useState<PaymentStep | null>(null);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const confirmingPaynowRef = useRef(
+    new URLSearchParams(window.location.search).has("paynow")
+  );
 
   useEffect(() => {
     getAllActiveParkings()
@@ -94,18 +97,20 @@ export default function Reservations({ auth, initialParkingId, activeVehicle }: 
     try {
       const list = await getReservations();
       setReservations(list);
-      const pending = list.find((r) => r.status === "PENDING_PAYMENT" && r.paymentToken);
-      if (pending?.paymentToken && !paymentStep) {
-        setPaymentStep({
-          reservationId: pending.id,
-          parkingName: pending.parkingLotName,
-          amount: pending.estimatedAmount,
-          currency: pending.currency,
-          token: pending.paymentToken
-        });
+      if (!confirmingPaynowRef.current) {
+        const pending = list.find((r) => r.status === "PENDING_PAYMENT" && r.paymentToken);
+        if (pending?.paymentToken && !paymentStep) {
+          setPaymentStep({
+            reservationId: pending.id,
+            parkingName: pending.parkingLotName,
+            amount: pending.estimatedAmount,
+            currency: pending.currency,
+            token: pending.paymentToken
+          });
+        }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Blad ladowania rezerwacji.");
+      setError(err instanceof Error ? err.message : "Błąd ładowania rezerwacji.");
     }
   }
 
@@ -117,13 +122,18 @@ export default function Reservations({ auth, initialParkingId, activeVehicle }: 
     const paynowToken = params.get("paynow");
     if (!paynowToken || !auth) return;
     window.history.replaceState(null, "", window.location.pathname);
+    confirmingPaynowRef.current = true;
     confirmPayment(paynowToken)
       .then(() => {
-        setStatus("Platnosc Paynow potwierdzona! Rezerwacja aktywna.");
-        void load();
+        setStatus("Płatność potwierdzona! Rezerwacja aktywna.");
+        setPaymentStep(null);
       })
       .catch(() => {
-        setError("Nie udalo sie potwierdzic platnosci Paynow. Sprobuj recznie.");
+        setError("Nie udało się potwierdzić płatności Paynow. Spróbuj ręcznie.");
+      })
+      .finally(() => {
+        confirmingPaynowRef.current = false;
+        void load();
       });
   }, [auth]);
 
@@ -213,7 +223,7 @@ export default function Reservations({ auth, initialParkingId, activeVehicle }: 
   if (!auth) {
     return (
       <div className="feedback feedback--empty">
-        Zaloguj sie, aby zarzadzac rezerwacjami. Przejdz do zakladki <strong>Profil</strong>.
+        Zaloguj sie przez panel <strong>/login</strong>, aby zarzadzac rezerwacjami.
       </div>
     );
   }

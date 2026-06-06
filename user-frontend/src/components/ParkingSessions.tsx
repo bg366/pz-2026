@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   getParkingSessions,
@@ -86,6 +86,11 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [paymentStep, setPaymentStep] = useState<PaymentStep | null>(null);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
+  // True while we're auto-confirming a Paynow return — prevents load() from
+  // flashing the payment panel before confirmation finishes.
+  const confirmingPaynowRef = useRef(
+    new URLSearchParams(window.location.search).has("session_paynow")
+  );
 
   const selectedParking = parkingOptions.find((p) => String(p.id) === parkingLotId) ?? null;
   const isOpen = selectedParking?.accessType === "OPEN";
@@ -106,18 +111,22 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
     try {
       const list = await getParkingSessions();
       setSessions(list);
-      const pending = list.find((s) => s.status === "PAYMENT_PENDING" && s.paymentToken);
-      if (pending?.paymentToken && !paymentStep) {
-        setPaymentStep({
-          sessionId: pending.id,
-          parkingName: pending.parkingLotName,
-          amount: pending.amount,
-          currency: pending.currency,
-          token: pending.paymentToken
-        });
+      // Don't show the payment panel while a Paynow confirmation is in flight —
+      // it would flash and confuse the user who just finished paying.
+      if (!confirmingPaynowRef.current) {
+        const pending = list.find((s) => s.status === "PAYMENT_PENDING" && s.paymentToken);
+        if (pending?.paymentToken && !paymentStep) {
+          setPaymentStep({
+            sessionId: pending.id,
+            parkingName: pending.parkingLotName,
+            amount: pending.amount,
+            currency: pending.currency,
+            token: pending.paymentToken
+          });
+        }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Blad ladowania sesji.");
+      setError(err instanceof Error ? err.message : "Błąd ładowania sesji.");
     }
   }
 
@@ -127,10 +136,19 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("session_paynow");
     if (!token || !auth) return;
+    // Strip the Paynow query params immediately so the user never sees them.
     window.history.replaceState(null, "", window.location.pathname);
+    confirmingPaynowRef.current = true;
     confirmSessionPayment(token)
-      .then(() => { setStatus("Platnosc Paynow potwierdzona! Mozesz opuscic parking."); void load(); })
-      .catch(() => { setError("Nie udalo sie potwierdzic platnosci Paynow."); });
+      .then(() => {
+        setStatus("Płatność potwierdzona! Możesz opuścić parking.");
+        setPaymentStep(null);
+      })
+      .catch(() => { setError("Nie udało się potwierdzić płatności Paynow."); })
+      .finally(() => {
+        confirmingPaynowRef.current = false;
+        void load();
+      });
   }, [auth]);
 
   async function handleStart(event: FormEvent<HTMLFormElement>) {
@@ -221,7 +239,7 @@ export default function ParkingSessions({ auth, initialParkingId }: Props) {
   if (!auth) {
     return (
       <div className="feedback feedback--empty">
-        Zaloguj sie, aby zarzadzac sesjami parkingowymi. Przejdz do zakladki <strong>Profil</strong>.
+        Zaloguj sie przez panel <strong>/login</strong>, aby zarzadzac sesjami parkingowymi.
       </div>
     );
   }

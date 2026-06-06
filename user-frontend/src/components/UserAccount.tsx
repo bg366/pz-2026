@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import {
-  login,
-  register,
   updateProfile,
   changePassword,
   getVehicles,
@@ -62,12 +60,6 @@ const emptyVehicle: VehicleFormState = {
 };
 
 export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange }: UserAccountProps) {
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [firstName, setFirstName] = useState("Jan");
-  const [lastName, setLastName] = useState("Kierowca");
-  const [email, setEmail] = useState("user@krakow-parking.local");
-  const [password, setPassword] = useState("User12345!");
-  const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
   const [profileFirstName, setProfileFirstName] = useState("");
   const [profileLastName, setProfileLastName] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -97,36 +89,6 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
       setError(requestError instanceof Error ? requestError.message : "Nie udało się pobrać pojazdów.")
     );
   }, [auth]);
-
-  async function submitAuth(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setStatus(null);
-
-    if (mode === "register") {
-      const pwErrors = validatePassword(password);
-      if (pwErrors.length > 0) {
-        setError("Hasło nie spełnia wymagań: " + pwErrors.join(", ") + ".");
-        return;
-      }
-      if (password !== registerConfirmPassword) {
-        setError("Hasło i jego potwierdzenie nie są identyczne.");
-        return;
-      }
-    }
-
-    try {
-      const payload =
-        mode === "login"
-          ? await login(email, password)
-          : await register(firstName, lastName, email, password);
-      saveAuth(payload);
-      onAuthChange(payload);
-      setStatus("Zalogowano.");
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Nie udało się zalogować.");
-    }
-  }
 
   async function submitProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -267,77 +229,9 @@ export default function UserAccount({ auth, onAuthChange, onActiveVehicleChange 
     return (
       <div className="stack">
         <div className="section-heading">
-          <h2>{mode === "login" ? "Zaloguj się" : "Zarejestruj konto"}</h2>
-          <p>Konto pozwala zapisać pojazdy i używać aktywnego pojazdu w wyszukiwarce.</p>
+          <h2>Profil</h2>
+          <p>Zaloguj sie przez przycisk w prawym gornym rogu, aby zarzadzac profilem i pojazdami.</p>
         </div>
-
-        <form className="card form-grid" onSubmit={submitAuth}>
-          {mode === "register" ? (
-            <div className="form-grid form-grid--three">
-              <label className="field">
-                <span>Imię</span>
-                <input value={firstName} onChange={(event) => setFirstName(event.target.value)} required />
-              </label>
-              <label className="field">
-                <span>Nazwisko</span>
-                <input value={lastName} onChange={(event) => setLastName(event.target.value)} required />
-              </label>
-            </div>
-          ) : null}
-
-          <label className="field">
-            <span>E-mail</span>
-            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
-          </label>
-          <label className="field">
-            <span>Hasło</span>
-            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
-          </label>
-
-          {mode === "register" ? (
-            <>
-              <label className="field">
-                <span>Powtórz hasło</span>
-                <input
-                  type="password"
-                  value={registerConfirmPassword}
-                  onChange={(event) => setRegisterConfirmPassword(event.target.value)}
-                  required
-                />
-              </label>
-              {password.length > 0 ? (
-                <div style={{ fontSize: "12px", color: "#6b7280", display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                  {[
-                    { ok: password.length >= 8, label: "8+ znaków" },
-                    { ok: /[A-Z]/.test(password), label: "Wielka litera" },
-                    { ok: /[a-z]/.test(password), label: "Mała litera" },
-                    { ok: /[0-9]/.test(password), label: "Cyfra" },
-                    { ok: /[^A-Za-z0-9]/.test(password), label: "Znak specjalny" },
-                  ].map(({ ok, label }) => (
-                    <span key={label} style={{ color: ok ? "#16a34a" : "#dc2626", fontWeight: 500 }}>
-                      {ok ? "✓" : "✗"} {label}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-            </>
-          ) : null}
-
-          {error ? <div className="feedback feedback--error">{error}</div> : null}
-
-          <div className="form-actions">
-            <button
-              type="button"
-              className="button button--ghost"
-              onClick={() => setMode(mode === "login" ? "register" : "login")}
-            >
-              {mode === "login" ? "Załóż konto" : "Mam konto"}
-            </button>
-            <button type="submit" className="button">
-              {mode === "login" ? "Zaloguj" : "Zarejestruj"}
-            </button>
-          </div>
-        </form>
       </div>
     );
   }
