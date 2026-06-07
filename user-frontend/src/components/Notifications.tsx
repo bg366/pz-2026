@@ -79,9 +79,18 @@ export default function Notifications({ auth }: Props) {
           type="button"
           onClick={() => void load()}
           disabled={loading}
-          style={{ padding: "6px 14px", borderRadius: "6px", border: "1px solid #d1d5db", background: "#fff", cursor: "pointer", fontSize: "0.85rem" }}
+          style={{
+            padding: "6px 14px",
+            borderRadius: "6px",
+            border: "1px solid #d1d5db",
+            background: loading ? "#f3f4f6" : "#fff",
+            color: loading ? "#9ca3af" : "#374151",
+            cursor: loading ? "not-allowed" : "pointer",
+            fontSize: "0.85rem",
+            opacity: loading ? 0.7 : 1,
+          }}
         >
-          {loading ? "Ładowanie..." : "Odśwież"}
+          {loading ? "Ładowanie…" : "Odśwież"}
         </button>
       </div>
 

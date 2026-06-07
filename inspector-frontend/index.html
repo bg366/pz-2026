@@ -70,15 +70,38 @@
   <script>
     const API_BASE = '';
 
-    let jwtToken = sessionStorage.getItem('inspector_token') || null;
+    let jwtToken = sessionStorage.getItem('inspector_token');
+    let confirmInFlight = false;
+
+    // HTML-escape helper — applied to every server-supplied value before innerHTML injection
+    function esc(str) {
+      if (str == null) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    class SessionExpiredError extends Error {}
 
     function authHeaders() {
-      return jwtToken ? { 'Authorization': 'Bearer ' + jwtToken, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+      return jwtToken
+        ? { 'Authorization': 'Bearer ' + jwtToken, 'Content-Type': 'application/json' }
+        : { 'Content-Type': 'application/json' };
     }
 
     async function authFetch(url, options = {}) {
       const res = await fetch(url, { ...options, headers: { ...authHeaders(), ...(options.headers || {}) } });
-      if (res.status === 401 || res.status === 403) { doLogout(); throw new Error('Sesja wygasla. Zaloguj sie ponownie.'); }
+      if (res.status === 401 || res.status === 403) {
+        doLogout();
+        // show message on the now-visible login screen instead of hidden result containers
+        const el = document.getElementById('login-error');
+        el.textContent = 'Sesja wygasła. Zaloguj się ponownie.';
+        el.style.display = 'block';
+        throw new SessionExpiredError();
+      }
       return res;
     }
 
@@ -95,12 +118,18 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password })
         });
-        if (!res.ok) { const t = await res.text(); throw new Error(JSON.parse(t).message || 'Bledne dane logowania.'); }
+        if (!res.ok) {
+          const t = await res.text();
+          let msg = 'Bledne dane logowania.';
+          try { msg = JSON.parse(t).message || msg; } catch {}
+          throw new Error(msg);
+        }
         const data = await res.json();
         const roles = data.roles || [];
         if (!roles.includes('INSPECTOR') && !roles.includes('ADMIN')) {
           throw new Error('Konto nie posiada roli Inspektora ani Administratora.');
         }
+        if (!data.token) throw new Error('Błąd serwera: brak tokenu w odpowiedzi.');
         jwtToken = data.token;
         sessionStorage.setItem('inspector_token', jwtToken);
         document.getElementById('logged-as').textContent = 'Zalogowano: ' + data.firstName + ' ' + data.lastName + ' (' + data.email + ')';
@@ -177,7 +206,7 @@
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         renderCheckResult(await res.json());
       } catch(err) {
-        showError('result-check', 'Błąd sprawdzania: ' + (err.message || ''));
+        if (!(err instanceof SessionExpiredError)) showError('result-check', 'Błąd sprawdzania: ' + (err.message || ''));
       } finally {
         setLoading('btn-check', false);
       }
@@ -191,13 +220,13 @@
       let icon = ok ? '✓' : (partial || hasExpired) ? '⚠' : '✗';
       let title = ok ? 'OPŁACONY' : hasExpired ? 'CZAS MINĄŁ' : partial ? 'OCZEKUJE NA PŁATNOŚĆ' : 'BRAK OPŁATY';
 
-      let inner = `<div class="result__icon">${icon}</div><div class="result__title">${title}</div><div class="result__plate">${data.registrationNumber}</div>`;
+      let inner = `<div class="result__icon">${icon}</div><div class="result__title">${title}</div><div class="result__plate">${esc(data.registrationNumber)}</div>`;
       for (const s of data.activeSessions) {
         const expiredNote = s.expired ? ' <span style="color:#f87171">(CZAS MINĄŁ)</span>' : '';
-        inner += `<div class="detail-card"><dl><dt>Parking</dt><dd>${s.parkingLotName}</dd><dt>Status</dt><dd>${statusLabel(s.status)}${expiredNote}</dd><dt>Wjazd</dt><dd>${formatDateTime(s.startedAt)}</dd>${s.endedAt ? `<dt>Ważna do</dt><dd>${formatDateTime(s.endedAt)}${expiredNote}</dd>` : ''}</dl></div>`;
+        inner += `<div class="detail-card"><dl><dt>Parking</dt><dd>${esc(s.parkingLotName)}</dd><dt>Status</dt><dd>${esc(statusLabel(s.status))}${expiredNote}</dd><dt>Wjazd</dt><dd>${formatDateTime(s.startedAt)}</dd>${s.endedAt ? `<dt>Ważna do</dt><dd>${formatDateTime(s.endedAt)}${expiredNote}</dd>` : ''}</dl></div>`;
       }
       for (const r of data.activeReservations) {
-        inner += `<div class="detail-card"><dl><dt>Parking</dt><dd>${r.parkingLotName}</dd><dt>Status</dt><dd>${statusLabel(r.status)}</dd><dt>Ważna do</dt><dd>${formatDateTime(r.endsAt)}</dd></dl></div>`;
+        inner += `<div class="detail-card"><dl><dt>Parking</dt><dd>${esc(r.parkingLotName)}</dd><dt>Status</dt><dd>${esc(statusLabel(r.status))}</dd><dt>Ważna do</dt><dd>${formatDateTime(r.endsAt)}</dd></dl></div>`;
       }
       if (!ok && !partial && !hasExpired) inner += `<p style="color:#94a3b8;font-size:.85rem;margin-top:8px">Brak opłaconego pobytu ani rezerwacji.</p>`;
       inner += `<div class="timestamp">Sprawdzono: ${new Date().toLocaleString('pl-PL')}</div>`;
@@ -216,6 +245,7 @@
       currentExitToken = null;
       try {
         const res = await authFetch(`${API_BASE}/api/inspect/exit/${encodeURIComponent(plate)}/initiate`, { method: 'POST' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (!data.success) {
           showError('result-exit', data.message || 'Brak aktywnej sesji dla tego pojazdu.');
@@ -227,8 +257,8 @@
             <div class="result result--ok">
               <div class="result__icon">✓</div>
               <div class="result__title">WYJAZD WOLNY</div>
-              <div class="result__plate">${plate}</div>
-              <p style="color:#34d399;margin:8px 0">${data.message}</p>
+              <div class="result__plate">${esc(plate)}</div>
+              <p style="color:#34d399;margin:8px 0">${esc(data.message)}</p>
               <div class="timestamp">Zarejestrowano: ${new Date().toLocaleString('pl-PL')}</div>
               <button class="reset-btn" onclick="resetExit()">Nowy pojazd</button>
             </div>`;
@@ -237,7 +267,7 @@
         currentExitToken = data.paymentToken;
         renderExitPayment(plate, data);
       } catch(err) {
-        showError('result-exit', 'Błąd: ' + (err.message || ''));
+        if (!(err instanceof SessionExpiredError)) showError('result-exit', 'Błąd: ' + (err.message || ''));
       } finally {
         setLoading('btn-exit', false);
       }
@@ -248,15 +278,18 @@
         <div class="result result--warn">
           <div class="result__icon">💳</div>
           <div class="result__title">DO ZAPŁATY</div>
-          <div class="result__plate">${plate}</div>
-          <div class="amount-box">${data.amount != null ? Number(data.amount).toFixed(2) + ' ' + (data.currency || 'PLN') : '0,00 PLN'}</div>
+          <div class="result__plate">${esc(plate)}</div>
+          <div class="amount-box">${data.amount != null ? Number(data.amount).toFixed(2) + ' ' + esc(data.currency || 'PLN') : '0,00 PLN'}</div>
           <button class="btn btn--green" style="margin-top:12px" onclick="confirmExit()">Potwierdź opłatę i otwórz szlaban</button>
           <button class="reset-btn" onclick="resetExit()">Anuluj</button>
         </div>`;
     }
 
     async function confirmExit() {
-      if (!currentExitToken) return;
+      if (!currentExitToken || confirmInFlight) return;
+      confirmInFlight = true;
+      const confirmBtn = document.querySelector('.btn--green');
+      if (confirmBtn) confirmBtn.disabled = true;
       try {
         const res = await authFetch(`${API_BASE}/api/inspect/exit/confirm/${currentExitToken}`, { method: 'POST' });
         const data = await res.json();
@@ -274,7 +307,9 @@
           showError('result-exit', data.message || 'Błąd potwierdzenia płatności.');
         }
       } catch(err) {
-        showError('result-exit', 'Błąd: ' + (err.message || ''));
+        if (!(err instanceof SessionExpiredError)) showError('result-exit', 'Błąd: ' + (err.message || ''));
+      } finally {
+        confirmInFlight = false;
       }
     }
 
@@ -282,12 +317,24 @@
       document.getElementById('result-exit').innerHTML = '';
       document.getElementById('plate-exit').value = '';
       currentExitToken = null;
+      confirmInFlight = false;
     }
 
     // ═══════════════ Utilities ═══════════════
     function showError(containerId, msg) {
-      document.getElementById(containerId).innerHTML =
-        `<div class="error-box">${msg}<br><button class="reset-btn" style="margin-top:12px" onclick="document.getElementById('${containerId}').innerHTML=''">OK</button></div>`;
+      const el = document.getElementById(containerId);
+      el.innerHTML = '';
+      const box = document.createElement('div');
+      box.className = 'error-box';
+      box.textContent = msg;
+      const btn = document.createElement('button');
+      btn.className = 'reset-btn';
+      btn.style.marginTop = '12px';
+      btn.textContent = 'OK';
+      btn.onclick = () => { el.innerHTML = ''; };
+      box.appendChild(document.createElement('br'));
+      box.appendChild(btn);
+      el.appendChild(box);
     }
 
     function setLoading(btnId, loading) {
